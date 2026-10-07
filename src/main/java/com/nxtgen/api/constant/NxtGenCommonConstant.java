@@ -12,6 +12,8 @@ public final class NxtGenCommonConstant {
     public static final String LOGIN_FAILED_ACTIVITY = "LOGIN_FAILED";
     public static final String LOGOUT_SUCCESS_ACTIVITY = "LOGOUT_SUCCESS";
 
+    public static final String USERS_GRID = "USERS_GRID";
+
     private NxtGenCommonConstant() {
     }
 }
