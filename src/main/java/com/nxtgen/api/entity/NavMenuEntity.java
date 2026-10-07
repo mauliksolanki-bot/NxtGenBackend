@@ -1,7 +1,5 @@
 package com.nxtgen.api.entity;
 
-import java.time.LocalDateTime;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -36,11 +34,8 @@ public class NavMenuEntity {
     @Column(name = "PARENT_MENU_ID")
     private Long parentMenuId;
 
-    @Column(name = "CRE_BY")
-    private String creBy;
-
-    @Column(name = "CRE_DATE")
-    private LocalDateTime creDate;
+    @Column(name = "ACCESS_LEVEL")
+    private String accessLevel;
 
     public Long getId() {
         return id;
@@ -74,11 +69,7 @@ public class NavMenuEntity {
         return parentMenuId;
     }
 
-    public String getCreBy() {
-        return creBy;
-    }
-
-    public LocalDateTime getCreDate() {
-        return creDate;
+    public String getAccessLevel() {
+        return accessLevel;
     }
 }

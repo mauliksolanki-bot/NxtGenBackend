@@ -2,12 +2,15 @@ package com.nxtgen.api.security;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.UUID;
 
 import javax.crypto.SecretKey;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
@@ -37,10 +40,28 @@ public class JwtTokenProvider {
         Date expiresAt = new Date(issuedAt.getTime() + expirationMs);
 
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(username)
                 .issuedAt(issuedAt)
                 .expiration(expiresAt)
                 .signWith(signingKey)
                 .compact();
+    }
+
+    /**
+     * Parses and validates the token signature, returning its claims.
+     * Expired tokens still yield their claims (via {@link ExpiredJwtException}) so
+     * logout can revoke an already-expired token's jti without failing the request.
+     */
+    public Claims parseClaims(String token) {
+        try {
+            return Jwts.parser()
+                    .verifyWith(signingKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+        } catch (ExpiredJwtException expiredJwtException) {
+            return expiredJwtException.getClaims();
+        }
     }
 }

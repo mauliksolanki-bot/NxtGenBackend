@@ -3,9 +3,11 @@ package com.nxtgen.api.controller;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.nxtgen.api.dto.NavMenuResponse;
 import com.nxtgen.api.service.NavMenuService;
 
 @RestController
@@ -19,7 +21,9 @@ public class NxtGenNavMenuController {
     }
 
     @GetMapping
-    public List<NavMenuResponse> getNavigationMenu() {
-        return navMenuService.getNavigationMenu();
+    public List<NavMenuResponse> getNavigationMenu(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        return navMenuService.getNavigationMenu(authorizationHeader);
     }
 }

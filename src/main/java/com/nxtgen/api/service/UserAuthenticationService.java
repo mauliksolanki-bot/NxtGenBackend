@@ -1,7 +1,11 @@
 package com.nxtgen.api.service;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -9,12 +13,17 @@ import org.springframework.stereotype.Service;
 import com.nxtgen.api.constant.NxtGenCommonConstant;
 import com.nxtgen.api.dto.LoginRequest;
 import com.nxtgen.api.dto.LoginResponse;
+import com.nxtgen.api.entity.RevokedTokenEntity;
 import com.nxtgen.api.entity.UserAuditEntity;
 import com.nxtgen.api.entity.UserMasterEntity;
 import com.nxtgen.api.exception.AuthenticationFailedException;
+import com.nxtgen.api.repository.RevokedTokenRepository;
 import com.nxtgen.api.repository.UserAuditRepository;
 import com.nxtgen.api.repository.UserMasterRepository;
 import com.nxtgen.api.security.JwtTokenProvider;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 
 import static com.nxtgen.api.constant.NxtGenCommonConstant.*;
 
@@ -22,20 +31,26 @@ import static com.nxtgen.api.constant.NxtGenCommonConstant.*;
 public class UserAuthenticationService {
 
     private static final String INVALID_CREDENTIALS_MESSAGE = "Invalid username or password.";
+    private static final String MISSING_TOKEN_MESSAGE = "You are already signed out.";
+    private static final String INVALID_TOKEN_MESSAGE = "Your session could not be verified.";
+    private static final String BEARER_PREFIX = "Bearer ";
 
     private final UserMasterRepository userMasterRepository;
     private final UserAuditRepository userAuditRepository;
+    private final RevokedTokenRepository revokedTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
 
     public UserAuthenticationService(
             UserMasterRepository userMasterRepository,
             UserAuditRepository userAuditRepository,
+            RevokedTokenRepository revokedTokenRepository,
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider
     ) {
         this.userMasterRepository = userMasterRepository;
         this.userAuditRepository = userAuditRepository;
+        this.revokedTokenRepository = revokedTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
     }
@@ -65,6 +80,52 @@ public class UserAuthenticationService {
                 user.getEmplNm(),
                 ENABLED_FLAG.equalsIgnoreCase(user.getIsSupAdmin())
         );
+    }
+
+    public void logout(String authorizationHeader) {
+        String token = extractBearerToken(authorizationHeader)
+                .orElseThrow(() -> new AuthenticationFailedException(MISSING_TOKEN_MESSAGE));
+
+        Claims claims = parseClaimsOrFail(token);
+        String username = claims.getSubject();
+        String jti = resolveJti(claims, token);
+        LocalDateTime expiresAt = toLocalDateTime(claims.getExpiration());
+
+        if (!revokedTokenRepository.existsByTokenJti(jti)) {
+            revokedTokenRepository.save(new RevokedTokenEntity(jti, username, expiresAt, LocalDateTime.now()));
+        }
+
+        recordAudit(username, LOGOUT_SUCCESS_ACTIVITY);
+    }
+
+    /**
+     * Tokens issued before the {@code jti} claim was introduced do not carry one.
+     * For those, derive a stable fallback identifier from the token itself so
+     * logout still works and the same token always maps to the same revocation row.
+     */
+    private String resolveJti(Claims claims, String token) {
+        return Optional.ofNullable(claims.getId())
+                .filter(id -> !id.isBlank())
+                .orElseGet(() -> UUID.nameUUIDFromBytes(token.getBytes(StandardCharsets.UTF_8)).toString());
+    }
+
+    private Optional<String> extractBearerToken(String authorizationHeader) {
+        return Optional.ofNullable(authorizationHeader)
+                .filter(header -> header.startsWith(BEARER_PREFIX))
+                .map(header -> header.substring(BEARER_PREFIX.length()).trim())
+                .filter(token -> !token.isEmpty());
+    }
+
+    private Claims parseClaimsOrFail(String token) {
+        try {
+            return jwtTokenProvider.parseClaims(token);
+        } catch (JwtException | IllegalArgumentException exception) {
+            throw new AuthenticationFailedException(INVALID_TOKEN_MESSAGE);
+        }
+    }
+
+    private LocalDateTime toLocalDateTime(java.util.Date date) {
+        return Instant.ofEpochMilli(date.getTime()).atZone(ZoneId.systemDefault()).toLocalDateTime();
     }
 
     private boolean isPasswordValid(String rawPassword, UserMasterEntity user) {
