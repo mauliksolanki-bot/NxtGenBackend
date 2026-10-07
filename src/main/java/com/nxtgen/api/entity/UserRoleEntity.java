@@ -1,0 +1,70 @@
+package com.nxtgen.api.entity;
+
+import java.time.LocalDateTime;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name = "NXTGEN_USER_ROLES")
+public class UserRoleEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "ID")
+    private Long id;
+
+    @Column(name = "USER_ID", nullable = false)
+    private Long userId;
+
+    @Column(name = "USERNAME", nullable = false)
+    private String username;
+
+    @Column(name = "ROLE_ID", nullable = false)
+    private Long roleId;
+
+    @Column(name = "CRE_BY")
+    private String creBy;
+
+    @Column(name = "CRE_DATE")
+    private LocalDateTime creDate;
+
+    public UserRoleEntity() {
+    }
+
+    public UserRoleEntity(Long userId, String username, Long roleId, String creBy, LocalDateTime creDate) {
+        this.userId = userId;
+        this.username = username;
+        this.roleId = roleId;
+        this.creBy = creBy;
+        this.creDate = creDate;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public Long getRoleId() {
+        return roleId;
+    }
+
+    public String getCreBy() {
+        return creBy;
+    }
+
+    public LocalDateTime getCreDate() {
+        return creDate;
+    }
+}

@@ -1,4 +1,4 @@
-package com.nxtgen.api.configuration;
+package com.nxtgen.api.config;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
