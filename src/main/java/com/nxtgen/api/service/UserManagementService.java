@@ -15,6 +15,7 @@ import com.nxtgen.api.dto.ValidationResponse;
 import com.nxtgen.api.entity.RoleEntity;
 import com.nxtgen.api.entity.UserMasterEntity;
 import com.nxtgen.api.entity.UserRoleEntity;
+import com.nxtgen.api.exception.UserNotFoundException;
 import com.nxtgen.api.exception.UserValidationException;
 import com.nxtgen.api.repository.RoleRepository;
 import com.nxtgen.api.repository.UserMasterRepository;
@@ -28,6 +29,7 @@ public class UserManagementService {
     private static final String EMAIL_DOMAIN = "@nxtgen.com";
     private static final Pattern NON_ALPHANUMERIC = Pattern.compile("[^a-z0-9]");
     private static final String VALIDATION_FAILED_MESSAGE = "Please correct the highlighted fields.";
+    private static final String USER_NOT_FOUND_MESSAGE = "User not found.";
 
     private final UserMasterRepository userMasterRepository;
     private final UserRoleRepository userRoleRepository;
@@ -94,6 +96,14 @@ public class UserManagementService {
                 savedUser.getEmailAddress(),
                 "User created successfully."
         );
+    }
+
+    public void deleteUser(Long userId) {
+        UserMasterEntity user = userMasterRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(USER_NOT_FOUND_MESSAGE));
+
+        userRoleRepository.deleteByUserId(user.getId());
+        userMasterRepository.delete(user);
     }
 
     private Map<String, String> collectValidationErrors(CreateUserRequest request) {

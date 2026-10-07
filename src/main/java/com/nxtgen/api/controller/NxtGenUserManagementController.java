@@ -20,6 +20,7 @@ import com.nxtgen.api.dto.CreateUserResponse;
 import com.nxtgen.api.dto.FormConfigResponse;
 import com.nxtgen.api.dto.ValidationResponse;
 import com.nxtgen.api.exception.FormNotFoundException;
+import com.nxtgen.api.exception.UserNotFoundException;
 import com.nxtgen.api.exception.UserValidationException;
 import com.nxtgen.api.service.FormConfigService;
 import com.nxtgen.api.service.UserManagementService;
@@ -56,8 +57,20 @@ public class NxtGenUserManagementController {
         return userManagementService.createUser(request);
     }
 
+    @PostMapping("/deleteuser")
+    public ResponseEntity<Map<String, String>> deleteUser(@RequestParam Long id) {
+        userManagementService.deleteUser(id);
+        return ResponseEntity.ok(Map.of("message", "User deleted successfully."));
+    }
+
     @ExceptionHandler(FormNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleFormNotFound(FormNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleUserNotFound(UserNotFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(Map.of("message", exception.getMessage()));
     }
