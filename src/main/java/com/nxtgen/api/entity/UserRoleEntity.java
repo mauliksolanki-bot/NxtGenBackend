@@ -33,6 +33,17 @@ public class UserRoleEntity {
     @Column(name = "CRE_DATE")
     private LocalDateTime creDate;
 
+    public UserRoleEntity() {
+    }
+
+    public UserRoleEntity(Long userId, String username, Long roleId, String creBy, LocalDateTime creDate) {
+        this.userId = userId;
+        this.username = username;
+        this.roleId = roleId;
+        this.creBy = creBy;
+        this.creDate = creDate;
+    }
+
     public Long getId() {
         return id;
     }

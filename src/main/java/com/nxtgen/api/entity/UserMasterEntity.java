@@ -31,7 +31,7 @@ public class UserMasterEntity {
     @Column(name = "PASSWORD", nullable = false)
     private String password;
 
-    @Column(name = "EMAIL_ADDRESS", nullable = false)
+    @Column(name = "EMAIL_ADDRESS", nullable = false, unique = true)
     private String emailAddress;
 
     @Column(name = "ACTV_FLAG")
@@ -42,6 +42,31 @@ public class UserMasterEntity {
 
     @Column(name = "IS_SUP_ADMIN")
     private String isSupAdmin;
+
+    public UserMasterEntity() {
+    }
+
+    public UserMasterEntity(
+            String firstNm,
+            String lastNm,
+            String emplNm,
+            String username,
+            String password,
+            String emailAddress,
+            String actvFlag,
+            String isLocked,
+            String isSupAdmin
+    ) {
+        this.firstNm = firstNm;
+        this.lastNm = lastNm;
+        this.emplNm = emplNm;
+        this.username = username;
+        this.password = password;
+        this.emailAddress = emailAddress;
+        this.actvFlag = actvFlag;
+        this.isLocked = isLocked;
+        this.isSupAdmin = isSupAdmin;
+    }
 
     public Long getId() {
         return id;

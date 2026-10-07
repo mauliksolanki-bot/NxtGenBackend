@@ -14,6 +14,13 @@ public final class NxtGenCommonConstant {
 
     public static final String USERS_GRID = "USERS_GRID";
 
+    public static final String CREATE_USER_FORM = "CREATE_USER_FORM";
+    public static final String ROLE_OPTIONS_SOURCE = "NXTGEN_ROLES";
+    public static final String YES_NO_OPTIONS_SOURCE = "YES_NO";
+    public static final String DEFAULT_USER_PASSWORD = "nxtgendemo123";
+    public static final String MANDATORY_FLAG = "Y";
+    public static final String SYSTEM_USER = "SYSTEM";
+
     private NxtGenCommonConstant() {
     }
 }
