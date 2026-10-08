@@ -25,6 +25,15 @@ public class RoleEntity {
     @Column(name = "IS_ACTIVE")
     private String isActive;
 
+    public RoleEntity() {
+    }
+
+    public RoleEntity(String roleName, String description, String isActive) {
+        this.roleName = roleName;
+        this.description = description;
+        this.isActive = isActive;
+    }
+
     public Long getId() {
         return id;
     }

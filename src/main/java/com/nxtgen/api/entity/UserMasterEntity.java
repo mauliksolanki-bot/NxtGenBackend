@@ -43,6 +43,9 @@ public class UserMasterEntity {
     @Column(name = "IS_SUP_ADMIN")
     private String isSupAdmin;
 
+    @Column(name = "SRC_USER_ID")
+    private Long srcUserId;
+
     public UserMasterEntity() {
     }
 
@@ -55,7 +58,8 @@ public class UserMasterEntity {
             String emailAddress,
             String actvFlag,
             String isLocked,
-            String isSupAdmin
+            String isSupAdmin,
+            Long srcUserId
     ) {
         this.firstNm = firstNm;
         this.lastNm = lastNm;
@@ -66,6 +70,7 @@ public class UserMasterEntity {
         this.actvFlag = actvFlag;
         this.isLocked = isLocked;
         this.isSupAdmin = isSupAdmin;
+        this.srcUserId = srcUserId;
     }
 
     public Long getId() {
@@ -106,5 +111,29 @@ public class UserMasterEntity {
 
     public String getIsSupAdmin() {
         return isSupAdmin;
+    }
+
+    public Long getSrcUserId() {
+        return srcUserId;
+    }
+
+    public void setFirstNm(String firstNm) {
+        this.firstNm = firstNm;
+    }
+
+    public void setLastNm(String lastNm) {
+        this.lastNm = lastNm;
+    }
+
+    public void setEmplNm(String emplNm) {
+        this.emplNm = emplNm;
+    }
+
+    public void setEmailAddress(String emailAddress) {
+        this.emailAddress = emailAddress;
+    }
+
+    public void setIsSupAdmin(String isSupAdmin) {
+        this.isSupAdmin = isSupAdmin;
     }
 }

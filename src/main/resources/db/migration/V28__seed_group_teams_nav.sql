@@ -1,0 +1,25 @@
+-- Seeds the Administration > Groups & Teams child nav menu item.
+INSERT INTO NXTGEN_NAV_MENU
+(MENU_NAME, MENU_CODE, MENU_DISPLAY_NAME, MENU_URL, IS_ENABLED, MENU_TYPE, PARENT_MENU_ID, ACCESS_LEVEL)
+SELECT
+    'Groups & Teams', 'ADMIN_GROUPS_TEAMS', 'Groups & Teams', '/administration/groups', 'Y', 'CHILD', ID, 'SUPER ADMIN'
+FROM NXTGEN_NAV_MENU
+WHERE MENU_CODE = 'ADMINISTRATION';
+
+-- Seeds the grid + column metadata for the Administration > Groups & Teams grid.
+-- DATA_FIELD values match the camelCase keys returned by /api/griddata so the
+-- frontend can bind columns directly to the row data.
+INSERT INTO NXTGEN_GRID (GRID_NAME, DATA_API, LOADING_MESSAGE, CRE_BY)
+VALUES ('NXTGEN_GRP_TEAMS', '/api/griddata?gridName=NXTGEN_GRP_TEAMS', 'Loading groups & teams...', 'SYSTEM');
+
+INSERT INTO NXTGEN_GRID_COLUMN
+(GRID_ID, COLUMN_NAME, DATA_FIELD, WIDTH, DISPLAY_ORDER, IS_SORTABLE, IS_FILTERABLE, IS_HIDDEN, CRE_BY)
+SELECT ID, 'ID', 'id', 100, 1, 'Y', 'N', 'N', 'SYSTEM' FROM NXTGEN_GRID WHERE GRID_NAME = 'NXTGEN_GRP_TEAMS'
+UNION ALL
+SELECT ID, 'GROUP NAME', 'grpName', 220, 2, 'Y', 'Y', 'N', 'SYSTEM' FROM NXTGEN_GRID WHERE GRID_NAME = 'NXTGEN_GRP_TEAMS'
+UNION ALL
+SELECT ID, 'DESCRIPTION', 'grpDescription', 320, 3, 'Y', 'Y', 'N', 'SYSTEM' FROM NXTGEN_GRID WHERE GRID_NAME = 'NXTGEN_GRP_TEAMS'
+UNION ALL
+SELECT ID, 'ACTIVE', 'isActive', 120, 4, 'Y', 'Y', 'N', 'SYSTEM' FROM NXTGEN_GRID WHERE GRID_NAME = 'NXTGEN_GRP_TEAMS'
+UNION ALL
+SELECT ID, 'ACTIONS', 'actions', 140, 5, 'N', 'N', 'N', 'SYSTEM' FROM NXTGEN_GRID WHERE GRID_NAME = 'NXTGEN_GRP_TEAMS';

@@ -22,4 +22,6 @@ public interface UserRoleRepository extends JpaRepository<UserRoleEntity, Long> 
     @Modifying
     @Transactional
     void deleteByUserId(Long userId);
+
+    List<UserRoleEntity> findByUserId(Long userId);
 }

@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.nxtgen.api.dto.CreateUserRequest;
 import com.nxtgen.api.dto.CreateUserResponse;
 import com.nxtgen.api.dto.FormConfigResponse;
+import com.nxtgen.api.dto.UpdateUserRequest;
+import com.nxtgen.api.dto.UserDetailResponse;
 import com.nxtgen.api.dto.ValidationResponse;
 import com.nxtgen.api.exception.FormNotFoundException;
 import com.nxtgen.api.exception.UserNotFoundException;
@@ -61,6 +63,16 @@ public class NxtGenUserManagementController {
     public ResponseEntity<Map<String, String>> deleteUser(@RequestParam Long id) {
         userManagementService.deleteUser(id);
         return ResponseEntity.ok(Map.of("message", "User deleted successfully."));
+    }
+
+    @GetMapping("/getuserbyid")
+    public UserDetailResponse getUserById(@RequestParam Long id) {
+        return userManagementService.getUserById(id);
+    }
+
+    @PostMapping("/updateuser")
+    public CreateUserResponse updateUser(@Valid @RequestBody UpdateUserRequest request) {
+        return userManagementService.updateUser(request);
     }
 
     @ExceptionHandler(FormNotFoundException.class)

@@ -1,0 +1,18 @@
+package com.nxtgen.api.repository;
+
+import java.util.List;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.nxtgen.api.entity.UserGroupEntity;
+
+public interface UserGroupRepository extends JpaRepository<UserGroupEntity, Long> {
+
+    List<UserGroupEntity> findByUserId(Long userId);
+
+    @Modifying
+    @Transactional
+    void deleteByUserId(Long userId);
+}

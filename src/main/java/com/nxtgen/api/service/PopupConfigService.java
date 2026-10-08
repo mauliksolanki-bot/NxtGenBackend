@@ -31,6 +31,7 @@ public class PopupConfigService {
         return new PopupConfigResponse(
                 popup.getId(),
                 popup.getPopupName(),
+                popup.getTitle(),
                 popup.getDisplayMsg(),
                 ENABLED_FLAG.equalsIgnoreCase(popup.getIsEnabled())
         );

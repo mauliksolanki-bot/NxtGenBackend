@@ -2,16 +2,28 @@ package com.nxtgen.api.dto;
 
 import java.util.List;
 
-public class CreateUserRequest {
+/**
+ * Submitted when saving edits from the Edit User form (/api/updateuser).
+ * User ID (srcUserId) and Password are intentionally not editable here.
+ */
+public class UpdateUserRequest {
 
+    private Long id;
     private Long userId;
     private String firstName;
     private String lastName;
     private String emailAddress;
-    private String password;
     private List<Long> roleIds;
     private List<Long> groupIds;
     private String isSuperAdmin;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
 
     public Long getUserId() {
         return userId;
@@ -43,14 +55,6 @@ public class CreateUserRequest {
 
     public void setEmailAddress(String emailAddress) {
         this.emailAddress = emailAddress;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
     }
 
     public List<Long> getRoleIds() {

@@ -21,6 +21,9 @@ public class PopupConfigEntity {
     @Column(name = "POPUP_NAME", nullable = false)
     private String popupName;
 
+    @Column(name = "TITLE")
+    private String title;
+
     @Column(name = "DISPLAY_MSG", nullable = false)
     private String displayMsg;
 
@@ -39,6 +42,10 @@ public class PopupConfigEntity {
 
     public String getPopupName() {
         return popupName;
+    }
+
+    public String getTitle() {
+        return title;
     }
 
     public String getDisplayMsg() {
