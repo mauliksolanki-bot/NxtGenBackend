@@ -16,6 +16,24 @@ public class UpdateUserRequest {
     private List<Long> roleIds;
     private List<Long> groupIds;
     private String isSuperAdmin;
+    private String passwordResetRequired;
+    private String isActive;
+
+    public String getPasswordResetRequired() {
+        return passwordResetRequired;
+    }
+
+    public void setPasswordResetRequired(String passwordResetRequired) {
+        this.passwordResetRequired = passwordResetRequired;
+    }
+
+    public String getIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(String isActive) {
+        this.isActive = isActive;
+    }
 
     public Long getId() {
         return id;

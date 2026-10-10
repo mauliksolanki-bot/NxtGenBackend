@@ -83,18 +83,20 @@ public class UserManagementService {
                 .filter(password -> !password.isBlank())
                 .orElse(DEFAULT_USER_PASSWORD);
 
-        UserMasterEntity savedUser = userMasterRepository.save(new UserMasterEntity(
+        UserMasterEntity newUser = new UserMasterEntity(
                 firstName,
                 lastName,
                 emplNm,
                 username,
                 passwordEncoder.encode(rawPassword),
                 emailAddress,
-                ACTIVE_FLAG,
+                request.getIsActive().toUpperCase(),
                 "N",
                 request.getIsSuperAdmin(),
                 request.getUserId()
-        ));
+        );
+        newUser.setPasswordResetRequired(request.getPasswordResetRequired().toUpperCase());
+        UserMasterEntity savedUser = userMasterRepository.save(newUser);
 
         userRoleRepository.saveAll(request.getRoleIds().stream()
                 .map(roleId -> new UserRoleEntity(
@@ -166,7 +168,9 @@ public class UserManagementService {
                 user.getEmailAddress(),
                 roleIds,
                 groups,
-                user.getIsSupAdmin()
+                user.getIsSupAdmin(),
+                user.getPasswordResetRequired(),
+                user.getActvFlag()
         );
     }
 
@@ -185,6 +189,8 @@ public class UserManagementService {
         user.setEmplNm(buildEmployeeName(request.getFirstName().trim(), request.getLastName().trim()));
         user.setEmailAddress(request.getEmailAddress().trim());
         user.setIsSupAdmin(request.getIsSuperAdmin());
+        user.setActvFlag(request.getIsActive().toUpperCase());
+        user.setPasswordResetRequired(request.getPasswordResetRequired().toUpperCase());
 
         UserMasterEntity savedUser = userMasterRepository.save(user);
 
@@ -249,6 +255,8 @@ public class UserManagementService {
             errors.put("isSuperAdmin", "Please select Yes or No for Super Admin.");
         }
 
+        errors.putAll(collectYesNoErrors(request.getPasswordResetRequired(), request.getIsActive()));
+
         String emailAddress = Optional.ofNullable(request.getEmailAddress()).map(String::trim).orElse("");
 
         if (emailAddress.isEmpty()) {
@@ -292,6 +300,8 @@ public class UserManagementService {
             errors.put("isSuperAdmin", "Please select Yes or No for Super Admin.");
         }
 
+        errors.putAll(collectYesNoErrors(request.getPasswordResetRequired(), request.getIsActive()));
+
         String emailAddress = Optional.ofNullable(request.getEmailAddress()).map(String::trim).orElse("");
 
         if (emailAddress.isEmpty()) {
@@ -319,6 +329,20 @@ public class UserManagementService {
 
         if (request.getUserId() != null && userMasterRepository.existsBySrcUserId(request.getUserId())) {
             errors.put("userId", USER_ALREADY_EXISTS_MESSAGE);
+        }
+
+        return errors;
+    }
+
+    private Map<String, String> collectYesNoErrors(String passwordResetRequired, String isActive) {
+        Map<String, String> errors = new HashMap<>();
+
+        if (!"Y".equalsIgnoreCase(passwordResetRequired) && !"N".equalsIgnoreCase(passwordResetRequired)) {
+            errors.put("passwordResetRequired", "Please select Yes or No for Password needs reset.");
+        }
+
+        if (!"Y".equalsIgnoreCase(isActive) && !"N".equalsIgnoreCase(isActive)) {
+            errors.put("isActive", "Please select Yes or No for Active.");
         }
 
         return errors;

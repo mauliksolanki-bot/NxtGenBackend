@@ -46,6 +46,9 @@ public class UserMasterEntity {
     @Column(name = "SRC_USER_ID")
     private Long srcUserId;
 
+    @Column(name = "PASSWORD_RESET_REQUIRED")
+    private String passwordResetRequired;
+
     public UserMasterEntity() {
     }
 
@@ -135,5 +138,21 @@ public class UserMasterEntity {
 
     public void setIsSupAdmin(String isSupAdmin) {
         this.isSupAdmin = isSupAdmin;
+    }
+
+    public String getPasswordResetRequired() {
+        return passwordResetRequired;
+    }
+
+    public void setPasswordResetRequired(String passwordResetRequired) {
+        this.passwordResetRequired = passwordResetRequired;
+    }
+
+    public void setActvFlag(String actvFlag) {
+        this.actvFlag = actvFlag;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 }

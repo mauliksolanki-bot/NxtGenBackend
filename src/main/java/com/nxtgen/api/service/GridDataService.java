@@ -1,5 +1,7 @@
 package com.nxtgen.api.service;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -16,9 +18,13 @@ import com.nxtgen.api.entity.UserMasterEntity;
 import com.nxtgen.api.exception.GridNotFoundException;
 import com.nxtgen.api.repository.GroupRepository;
 import com.nxtgen.api.repository.RoleRepository;
+import com.nxtgen.api.repository.UserAuditRepository;
 import com.nxtgen.api.repository.UserMasterRepository;
 
+import static com.nxtgen.api.constant.NxtGenCommonConstant.ENABLED_FLAG;
 import static com.nxtgen.api.constant.NxtGenCommonConstant.GROUPS_TEAMS_GRID;
+import static com.nxtgen.api.constant.NxtGenCommonConstant.LOCKED_FLAG;
+import static com.nxtgen.api.constant.NxtGenCommonConstant.LOGIN_SUCCESS_ACTIVITY;
 import static com.nxtgen.api.constant.NxtGenCommonConstant.ROLES_GRID;
 import static com.nxtgen.api.constant.NxtGenCommonConstant.USERS_GRID;
 
@@ -26,14 +32,22 @@ import static com.nxtgen.api.constant.NxtGenCommonConstant.USERS_GRID;
 public class GridDataService {
 
     private static final String GRID_NOT_FOUND_MESSAGE = "Grid data is unavailable right now.";
+    private static final DateTimeFormatter LAST_LOGIN_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final UserMasterRepository userMasterRepository;
+    private final UserAuditRepository userAuditRepository;
     private final RoleRepository roleRepository;
     private final GroupRepository groupRepository;
     private final Map<String, Supplier<List<Map<String, Object>>>> gridDataSuppliers;
 
-    public GridDataService(UserMasterRepository userMasterRepository, RoleRepository roleRepository, GroupRepository groupRepository) {
+    public GridDataService(
+            UserMasterRepository userMasterRepository,
+            UserAuditRepository userAuditRepository,
+            RoleRepository roleRepository,
+            GroupRepository groupRepository
+    ) {
         this.userMasterRepository = userMasterRepository;
+        this.userAuditRepository = userAuditRepository;
         this.roleRepository = roleRepository;
         this.groupRepository = groupRepository;
         this.gridDataSuppliers = Map.of(
@@ -57,19 +71,31 @@ public class GridDataService {
      * frontend can bind rows to columns without any extra mapping.
      */
     private List<Map<String, Object>> fetchUsersGridData() {
+        Map<String, LocalDateTime> lastLoginByUsername = userAuditRepository
+                .findLastActivityDates(LOGIN_SUCCESS_ACTIVITY).stream()
+                .filter(activity -> activity.getUsername() != null && activity.getLastDate() != null)
+                .collect(Collectors.toMap(
+                        activity -> activity.getUsername().toLowerCase(Locale.ROOT),
+                        UserAuditRepository.LastActivity::getLastDate,
+                        (first, second) -> first.isAfter(second) ? first : second));
+
         return userMasterRepository.findAll().stream()
-                .map(this::toUsersGridRow)
+                .map(user -> toUsersGridRow(user, lastLoginByUsername))
                 .collect(Collectors.toList());
     }
 
-    private Map<String, Object> toUsersGridRow(UserMasterEntity user) {
+    private Map<String, Object> toUsersGridRow(UserMasterEntity user, Map<String, LocalDateTime> lastLoginByUsername) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("id", user.getId());
         row.put("emplNm", user.getEmplNm());
         row.put("username", user.getUsername());
         row.put("emailAddress", user.getEmailAddress());
-        row.put("actvFlag", user.getActvFlag());
-        row.put("isLocked", user.getIsLocked());
+        row.put("actvFlag", ENABLED_FLAG.equalsIgnoreCase(user.getActvFlag()));
+        row.put("isLocked", LOCKED_FLAG.equalsIgnoreCase(user.getIsLocked()));
+        row.put("lastLoginDate", Optional.ofNullable(user.getUsername())
+                .map(name -> lastLoginByUsername.get(name.toLowerCase(Locale.ROOT)))
+                .map(date -> date.format(LAST_LOGIN_FORMAT))
+                .orElse(""));
         return row;
     }
 

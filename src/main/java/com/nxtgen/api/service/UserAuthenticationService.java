@@ -4,6 +4,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -11,12 +13,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.nxtgen.api.constant.NxtGenCommonConstant;
+import com.nxtgen.api.dto.ChangePasswordRequest;
 import com.nxtgen.api.dto.LoginRequest;
 import com.nxtgen.api.dto.LoginResponse;
 import com.nxtgen.api.entity.RevokedTokenEntity;
 import com.nxtgen.api.entity.UserAuditEntity;
 import com.nxtgen.api.entity.UserMasterEntity;
 import com.nxtgen.api.exception.AuthenticationFailedException;
+import com.nxtgen.api.exception.UserValidationException;
 import com.nxtgen.api.repository.RevokedTokenRepository;
 import com.nxtgen.api.repository.UserAuditRepository;
 import com.nxtgen.api.repository.UserMasterRepository;
@@ -34,6 +38,8 @@ public class UserAuthenticationService {
     private static final String MISSING_TOKEN_MESSAGE = "You are already signed out.";
     private static final String INVALID_TOKEN_MESSAGE = "Your session could not be verified.";
     private static final String BEARER_PREFIX = "Bearer ";
+    private static final int MIN_PASSWORD_LENGTH = 8;
+    private static final String PASSWORD_CHANGED_ACTIVITY = "PASSWORD_CHANGED";
 
     private final UserMasterRepository userMasterRepository;
     private final UserAuditRepository userAuditRepository;
@@ -78,8 +84,50 @@ public class UserAuthenticationService {
                 expirationMs,
                 user.getUsername(),
                 user.getEmplNm(),
-                ENABLED_FLAG.equalsIgnoreCase(user.getIsSupAdmin())
+                ENABLED_FLAG.equalsIgnoreCase(user.getIsSupAdmin()),
+                ENABLED_FLAG.equalsIgnoreCase(user.getPasswordResetRequired())
         );
+    }
+
+    public void changePassword(String authorizationHeader, ChangePasswordRequest request) {
+        String token = extractBearerToken(authorizationHeader)
+                .orElseThrow(() -> new AuthenticationFailedException(INVALID_TOKEN_MESSAGE));
+
+        Claims claims = parseClaimsOrFail(token);
+        String username = claims.getSubject();
+        String jti = resolveJti(claims, token);
+
+        if (claims.getExpiration().before(new java.util.Date()) || revokedTokenRepository.existsByTokenJti(jti)) {
+            throw new AuthenticationFailedException(INVALID_TOKEN_MESSAGE);
+        }
+
+        UserMasterEntity user = userMasterRepository.findByUsername(username)
+                .filter(this::isActive)
+                .filter(this::isNotLocked)
+                .orElseThrow(() -> new AuthenticationFailedException(INVALID_TOKEN_MESSAGE));
+
+        String newPassword = Optional.ofNullable(request.getNewPassword()).orElse("");
+        String confirmPassword = Optional.ofNullable(request.getConfirmPassword()).orElse("");
+        Map<String, String> errors = new HashMap<>();
+
+        if (newPassword.length() < MIN_PASSWORD_LENGTH) {
+            errors.put("newPassword", "Password must be at least " + MIN_PASSWORD_LENGTH + " characters long.");
+        } else if (DEFAULT_USER_PASSWORD.equals(newPassword) || isPasswordValid(newPassword, user)) {
+            errors.put("newPassword", "New password must be different from your current password.");
+        }
+
+        if (!newPassword.equals(confirmPassword)) {
+            errors.put("confirmPassword", "Passwords do not match.");
+        }
+
+        if (!errors.isEmpty()) {
+            throw new UserValidationException("Please correct the highlighted fields.", errors);
+        }
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setPasswordResetRequired("N");
+        userMasterRepository.save(user);
+        recordAudit(username, PASSWORD_CHANGED_ACTIVITY);
     }
 
     public void logout(String authorizationHeader) {
