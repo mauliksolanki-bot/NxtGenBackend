@@ -13,6 +13,8 @@ public final class NxtGenCommonConstant {
     public static final String LOGOUT_SUCCESS_ACTIVITY = "LOGOUT_SUCCESS";
 
     public static final String USERS_GRID = "USERS_GRID";
+    public static final String ROLES_GRID = "ROLES_GRID";
+    public static final String GROUPS_TEAMS_GRID = "NXTGEN_GRP_TEAMS";
 
     public static final String CREATE_USER_FORM = "CREATE_USER_FORM";
     public static final String ROLE_OPTIONS_SOURCE = "NXTGEN_ROLES";

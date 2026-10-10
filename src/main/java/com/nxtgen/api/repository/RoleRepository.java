@@ -12,4 +12,6 @@ public interface RoleRepository extends JpaRepository<RoleEntity, Long> {
     List<RoleEntity> findByIsActiveOrderByRoleNameAsc(String isActive);
 
     Optional<RoleEntity> findByIdAndIsActive(Long id, String isActive);
+
+    boolean existsByRoleNameIgnoreCase(String roleName);
 }

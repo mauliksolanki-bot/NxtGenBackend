@@ -8,45 +8,60 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "NXTGEN_ROLES")
-public class RoleEntity {
+@Table(name = "NXTGEN_SVC_CATEGORY")
+public class SvcCategoryEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "ID")
     private Long id;
 
-    @Column(name = "ROLE_NAME", nullable = false, unique = true)
-    private String roleName;
+    @Column(name = "NAME", nullable = false, unique = true)
+    private String name;
+
+    @Column(name = "ICON")
+    private String icon;
 
     @Column(name = "DESCRIPTION")
     private String description;
 
+    @Column(name = "DISPLAY_ORDER")
+    private Integer displayOrder;
+
     @Column(name = "IS_ACTIVE")
     private String isActive;
 
-    public RoleEntity() {
-    }
+    @Column(name = "SLUG")
+    private String slug;
 
-    public RoleEntity(String roleName, String description, String isActive) {
-        this.roleName = roleName;
-        this.description = description;
-        this.isActive = isActive;
+    public SvcCategoryEntity() {
     }
 
     public Long getId() {
         return id;
     }
 
-    public String getRoleName() {
-        return roleName;
+    public String getName() {
+        return name;
+    }
+
+    public String getIcon() {
+        return icon;
     }
 
     public String getDescription() {
         return description;
     }
 
+    public Integer getDisplayOrder() {
+        return displayOrder;
+    }
+
     public String getIsActive() {
         return isActive;
+    }
+
+    public String getSlug() {
+        return slug;
     }
 }
