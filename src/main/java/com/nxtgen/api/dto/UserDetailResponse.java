@@ -18,6 +18,8 @@ public class UserDetailResponse {
     private final List<Long> roleIds;
     private final List<OptionResponse> groups;
     private final String isSuperAdmin;
+    private final String passwordResetRequired;
+    private final String isActive;
 
     public UserDetailResponse(
             Long id,
@@ -29,8 +31,12 @@ public class UserDetailResponse {
             String emailAddress,
             List<Long> roleIds,
             List<OptionResponse> groups,
-            String isSuperAdmin
+            String isSuperAdmin,
+            String passwordResetRequired,
+            String isActive
     ) {
+        this.passwordResetRequired = passwordResetRequired;
+        this.isActive = isActive;
         this.id = id;
         this.userId = userId;
         this.firstName = firstName;
@@ -81,5 +87,13 @@ public class UserDetailResponse {
 
     public String getIsSuperAdmin() {
         return isSuperAdmin;
+    }
+
+    public String getPasswordResetRequired() {
+        return passwordResetRequired;
+    }
+
+    public String getIsActive() {
+        return isActive;
     }
 }

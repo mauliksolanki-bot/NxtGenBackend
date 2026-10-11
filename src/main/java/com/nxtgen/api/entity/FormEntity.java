@@ -27,6 +27,9 @@ public class FormEntity {
     @Column(name = "TEMPLATE_TYPE")
     private String templateType;
 
+    @Column(name = "SUBMIT_LABEL")
+    private String submitLabel;
+
     @Column(name = "CRE_BY")
     private String creBy;
 
@@ -47,6 +50,10 @@ public class FormEntity {
 
     public String getTemplateType() {
         return templateType;
+    }
+
+    public String getSubmitLabel() {
+        return submitLabel;
     }
 
     public String getCreBy() {

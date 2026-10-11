@@ -46,6 +46,12 @@ public class UserMasterEntity {
     @Column(name = "SRC_USER_ID")
     private Long srcUserId;
 
+    @Column(name = "FAILED_LOGIN_ATTEMPTS")
+    private Integer failedLoginAttempts = 0;
+
+    @Column(name = "PASSWORD_RESET_REQUIRED")
+    private String passwordResetRequired;
+
     public UserMasterEntity() {
     }
 
@@ -109,6 +115,18 @@ public class UserMasterEntity {
         return isLocked;
     }
 
+    public void setIsLocked(String isLocked) {
+        this.isLocked = isLocked;
+    }
+
+    public int getFailedLoginAttempts() {
+        return failedLoginAttempts == null ? 0 : failedLoginAttempts;
+    }
+
+    public void setFailedLoginAttempts(int failedLoginAttempts) {
+        this.failedLoginAttempts = failedLoginAttempts;
+    }
+
     public String getIsSupAdmin() {
         return isSupAdmin;
     }
@@ -135,5 +153,21 @@ public class UserMasterEntity {
 
     public void setIsSupAdmin(String isSupAdmin) {
         this.isSupAdmin = isSupAdmin;
+    }
+
+    public String getPasswordResetRequired() {
+        return passwordResetRequired;
+    }
+
+    public void setPasswordResetRequired(String passwordResetRequired) {
+        this.passwordResetRequired = passwordResetRequired;
+    }
+
+    public void setActvFlag(String actvFlag) {
+        this.actvFlag = actvFlag;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 }

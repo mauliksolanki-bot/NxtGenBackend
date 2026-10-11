@@ -8,6 +8,7 @@ public class LoginResponse {
     private final String username;
     private final String displayName;
     private final boolean supAdmin;
+    private final boolean passwordResetRequired;
 
     public LoginResponse(
             String token,
@@ -15,8 +16,10 @@ public class LoginResponse {
             long expiresInMs,
             String username,
             String displayName,
-            boolean supAdmin
+            boolean supAdmin,
+            boolean passwordResetRequired
     ) {
+        this.passwordResetRequired = passwordResetRequired;
         this.token = token;
         this.tokenType = tokenType;
         this.expiresInMs = expiresInMs;
@@ -47,5 +50,9 @@ public class LoginResponse {
 
     public boolean isSupAdmin() {
         return supAdmin;
+    }
+
+    public boolean isPasswordResetRequired() {
+        return passwordResetRequired;
     }
 }

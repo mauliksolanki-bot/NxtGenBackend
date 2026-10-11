@@ -52,7 +52,14 @@ public class FormConfigService {
                 .map(this::toFieldResponse)
                 .collect(Collectors.toList());
 
-        return new FormConfigResponse(form.getId(), form.getFormName(), form.getDataApi(), form.getTemplateType(), fields);
+        return new FormConfigResponse(
+                form.getId(),
+                form.getFormName(),
+                form.getDataApi(),
+                form.getTemplateType(),
+                form.getSubmitLabel(),
+                fields
+        );
     }
 
     private FormFieldResponse toFieldResponse(FormFieldEntity field) {

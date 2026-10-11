@@ -8,13 +8,22 @@ public class FormConfigResponse {
     private final String formName;
     private final String dataApi;
     private final String templateType;
+    private final String submitLabel;
     private final List<FormFieldResponse> fields;
 
-    public FormConfigResponse(Long id, String formName, String dataApi, String templateType, List<FormFieldResponse> fields) {
+    public FormConfigResponse(
+            Long id,
+            String formName,
+            String dataApi,
+            String templateType,
+            String submitLabel,
+            List<FormFieldResponse> fields
+    ) {
         this.id = id;
         this.formName = formName;
         this.dataApi = dataApi;
         this.templateType = templateType;
+        this.submitLabel = submitLabel;
         this.fields = fields;
     }
 
@@ -32,6 +41,10 @@ public class FormConfigResponse {
 
     public String getTemplateType() {
         return templateType;
+    }
+
+    public String getSubmitLabel() {
+        return submitLabel;
     }
 
     public List<FormFieldResponse> getFields() {
