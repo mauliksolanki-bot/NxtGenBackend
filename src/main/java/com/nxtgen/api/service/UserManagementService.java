@@ -136,6 +136,15 @@ public class UserManagementService {
         userMasterRepository.delete(user);
     }
 
+    public void unlockUser(Long userId) {
+        UserMasterEntity user = userMasterRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(USER_NOT_FOUND_MESSAGE));
+
+        user.setIsLocked("N");
+        user.setFailedLoginAttempts(0);
+        userMasterRepository.save(user);
+    }
+
     public UserDetailResponse getUserById(Long id) {
         UserMasterEntity user = userMasterRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(USER_NOT_FOUND_MESSAGE));

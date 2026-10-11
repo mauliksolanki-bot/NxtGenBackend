@@ -65,6 +65,12 @@ public class NxtGenUserManagementController {
         return ResponseEntity.ok(Map.of("message", "User deleted successfully."));
     }
 
+    @PostMapping("/unlockuser")
+    public ResponseEntity<Map<String, String>> unlockUser(@RequestParam Long id) {
+        userManagementService.unlockUser(id);
+        return ResponseEntity.ok(Map.of("message", "User unlocked successfully."));
+    }
+
     @GetMapping("/getuserbyid")
     public UserDetailResponse getUserById(@RequestParam Long id) {
         return userManagementService.getUserById(id);

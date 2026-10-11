@@ -39,6 +39,11 @@ public class UserAuthenticationService {
     private static final String INVALID_TOKEN_MESSAGE = "Your session could not be verified.";
     private static final String BEARER_PREFIX = "Bearer ";
     private static final int MIN_PASSWORD_LENGTH = 8;
+    private static final int MAX_FAILED_ATTEMPTS = 3;
+    private static final String ACCOUNT_INACTIVE_MESSAGE =
+            "Your account is not active. Please contact your administrator.";
+    private static final String ACCOUNT_LOCKED_MESSAGE =
+            "Your account has been locked after 3 failed login attempts. Please contact your administrator.";
     private static final String PASSWORD_CHANGED_ACTIVITY = "PASSWORD_CHANGED";
 
     private final UserMasterRepository userMasterRepository;
@@ -62,11 +67,31 @@ public class UserAuthenticationService {
     }
 
     public LoginResponse login(LoginRequest loginRequest) {
-        UserMasterEntity user = userMasterRepository.findByUsername(loginRequest.getUsername())
+        Optional<UserMasterEntity> existingUser = userMasterRepository.findByUsername(loginRequest.getUsername());
+
+        existingUser.ifPresent(candidate -> {
+            if (LOCKED_FLAG.equalsIgnoreCase(candidate.getIsLocked())) {
+                recordAudit(loginRequest.getUsername(), LOGIN_FAILED_ACTIVITY);
+                throw new AuthenticationFailedException(ACCOUNT_LOCKED_MESSAGE);
+            }
+
+            if (!isPasswordValid(loginRequest.getPassword(), candidate)) {
+                registerFailedAttempt(candidate);
+            }
+        });
+
+        UserMasterEntity user = existingUser
                 .filter(candidate -> isPasswordValid(loginRequest.getPassword(), candidate))
-                .filter(this::isActive)
-                .filter(this::isNotLocked)
                 .map(validUser -> {
+                    if (!isActive(validUser)) {
+                        recordAudit(loginRequest.getUsername(), LOGIN_FAILED_ACTIVITY);
+                        throw new AuthenticationFailedException(ACCOUNT_INACTIVE_MESSAGE);
+                    }
+                    return validUser;
+                })
+                .map(validUser -> {
+                    validUser.setFailedLoginAttempts(0);
+                    userMasterRepository.save(validUser);
                     recordAudit(loginRequest.getUsername(), LOGIN_SUCCESS_ACTIVITY);
                     return validUser;
                 })
@@ -188,6 +213,23 @@ public class UserAuthenticationService {
 
     private boolean isNotLocked(UserMasterEntity user) {
         return !LOCKED_FLAG.equalsIgnoreCase(user.getIsLocked());
+    }
+
+    private void registerFailedAttempt(UserMasterEntity user) {
+        int attempts = user.getFailedLoginAttempts() + 1;
+        user.setFailedLoginAttempts(attempts);
+
+        boolean nowLocked = attempts >= MAX_FAILED_ATTEMPTS;
+        if (nowLocked) {
+            user.setIsLocked(LOCKED_FLAG);
+        }
+
+        userMasterRepository.save(user);
+        recordAudit(user.getUsername(), LOGIN_FAILED_ACTIVITY);
+
+        if (nowLocked) {
+            throw new AuthenticationFailedException(ACCOUNT_LOCKED_MESSAGE);
+        }
     }
 
     private void recordAudit(String username, String activity) {
