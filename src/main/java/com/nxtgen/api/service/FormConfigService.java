@@ -16,6 +16,8 @@ import com.nxtgen.api.exception.FormNotFoundException;
 import com.nxtgen.api.repository.FormFieldRepository;
 import com.nxtgen.api.repository.FormRepository;
 import com.nxtgen.api.repository.RoleRepository;
+import com.nxtgen.api.repository.SrApprovalCheckRepository;
+import com.nxtgen.api.repository.SrLookupRepository;
 
 import static com.nxtgen.api.constant.NxtGenCommonConstant.*;
 
@@ -28,6 +30,8 @@ import static com.nxtgen.api.constant.NxtGenCommonConstant.*;
 public class FormConfigService {
 
     private static final String FORM_NOT_FOUND_MESSAGE = "Form configuration is unavailable right now.";
+    private static final String SR_LOOKUP_SOURCE_PREFIX = "SR_LOOKUP:";
+    private static final String SR_REQUEST_TYPE_SOURCE = "SR_REQUEST_TYPE";
     private static final List<OptionResponse> YES_NO_OPTIONS = List.of(
             new OptionResponse("Y", "Yes"),
             new OptionResponse("N", "No")
@@ -36,11 +40,21 @@ public class FormConfigService {
     private final FormRepository formRepository;
     private final FormFieldRepository formFieldRepository;
     private final RoleRepository roleRepository;
+    private final SrLookupRepository srLookupRepository;
+    private final SrApprovalCheckRepository srApprovalCheckRepository;
 
-    public FormConfigService(FormRepository formRepository, FormFieldRepository formFieldRepository, RoleRepository roleRepository) {
+    public FormConfigService(
+            FormRepository formRepository,
+            FormFieldRepository formFieldRepository,
+            RoleRepository roleRepository,
+            SrLookupRepository srLookupRepository,
+            SrApprovalCheckRepository srApprovalCheckRepository
+    ) {
         this.formRepository = formRepository;
         this.formFieldRepository = formFieldRepository;
         this.roleRepository = roleRepository;
+        this.srLookupRepository = srLookupRepository;
+        this.srApprovalCheckRepository = srApprovalCheckRepository;
     }
 
     public FormConfigResponse getFormConfig(String formName) {
@@ -74,11 +88,26 @@ public class FormConfigService {
                 MANDATORY_FLAG.equalsIgnoreCase(field.getIsReadonly()),
                 field.getDefaultValue(),
                 field.getDisplayOrder(),
-                resolveOptions(field.getOptionsSource())
+                resolveOptions(field.getOptionsSource()),
+                MANDATORY_FLAG.equalsIgnoreCase(field.getIsFullWidth())
         );
     }
 
     private List<OptionResponse> resolveOptions(String optionsSource) {
+        if (optionsSource != null && optionsSource.toUpperCase().startsWith(SR_LOOKUP_SOURCE_PREFIX)) {
+            String lookupType = optionsSource.substring(SR_LOOKUP_SOURCE_PREFIX.length()).trim();
+            return srLookupRepository.findByLookupTypeAndIsActiveOrderByDisplayOrderAsc(lookupType, ENABLED_FLAG)
+                    .stream()
+                    .map(lookup -> new OptionResponse(lookup.getLookupCode(), lookup.getLookupLabel()))
+                    .collect(Collectors.toList());
+        }
+
+        if (SR_REQUEST_TYPE_SOURCE.equalsIgnoreCase(optionsSource)) {
+            return srApprovalCheckRepository.findDistinctRequestTypes(ENABLED_FLAG).stream()
+                    .map(requestType -> new OptionResponse(requestType, requestType))
+                    .collect(Collectors.toList());
+        }
+
         if (ROLE_OPTIONS_SOURCE.equalsIgnoreCase(optionsSource)) {
             return roleRepository.findByIsActiveOrderByRoleNameAsc(ENABLED_FLAG)
                     .stream()

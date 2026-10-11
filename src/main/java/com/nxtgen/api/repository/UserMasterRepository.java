@@ -25,6 +25,16 @@ public interface UserMasterRepository extends JpaRepository<UserMasterEntity, Lo
 
     boolean existsBySrcUserIdAndIdNot(Long srcUserId, Long id);
 
+    @Query(value = """
+            SELECT * FROM NXTGEN_USERS_MASTER
+            WHERE ACTV_FLAG = 'Y'
+              AND (CAST(ID AS CHAR) LIKE CONCAT(:query, '%')
+                   OR LOWER(USERNAME) LIKE LOWER(CONCAT('%', :query, '%'))
+                   OR LOWER(EMPL_NM) LIKE LOWER(CONCAT('%', :query, '%')))
+            ORDER BY EMPL_NM ASC LIMIT 20
+            """, nativeQuery = true)
+    List<UserMasterEntity> searchActiveUsersByIdNameOrUsername(@Param("query") String query);
+
     @Query("""
             SELECT DISTINCT u FROM UserMasterEntity u
             JOIN UserRoleEntity ur ON ur.userId = u.id

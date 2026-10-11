@@ -15,6 +15,7 @@ public class FormFieldResponse {
     private final String defaultValue;
     private final Long displayOrder;
     private final List<OptionResponse> options;
+    private final boolean fullWidth;
 
     public FormFieldResponse(
             Long id,
@@ -27,8 +28,10 @@ public class FormFieldResponse {
             boolean readOnly,
             String defaultValue,
             Long displayOrder,
-            List<OptionResponse> options
+            List<OptionResponse> options,
+            boolean fullWidth
     ) {
+        this.fullWidth = fullWidth;
         this.id = id;
         this.fieldName = fieldName;
         this.fieldLabel = fieldLabel;
@@ -84,5 +87,9 @@ public class FormFieldResponse {
 
     public List<OptionResponse> getOptions() {
         return options;
+    }
+
+    public boolean isFullWidth() {
+        return fullWidth;
     }
 }

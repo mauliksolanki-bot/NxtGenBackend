@@ -54,6 +54,9 @@ public class FormFieldEntity {
     @Column(name = "OPTIONS_SOURCE")
     private String optionsSource;
 
+    @Column(name = "IS_FULL_WIDTH")
+    private String isFullWidth;
+
     @Column(name = "CRE_BY")
     private String creBy;
 
@@ -110,6 +113,10 @@ public class FormFieldEntity {
 
     public String getOptionsSource() {
         return optionsSource;
+    }
+
+    public String getIsFullWidth() {
+        return isFullWidth;
     }
 
     public String getCreBy() {

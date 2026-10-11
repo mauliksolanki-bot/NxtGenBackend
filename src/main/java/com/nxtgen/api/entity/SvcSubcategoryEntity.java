@@ -37,7 +37,14 @@ public class SvcSubcategoryEntity {
     @Column(name = "SLUG")
     private String slug;
 
+    @Column(name = "FORM_NAME")
+    private String formName;
+
     public SvcSubcategoryEntity() {
+    }
+
+    public String getFormName() {
+        return formName;
     }
 
     public Long getId() {
