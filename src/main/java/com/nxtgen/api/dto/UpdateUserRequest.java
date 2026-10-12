@@ -9,6 +9,9 @@ import java.util.List;
 public class UpdateUserRequest {
 
     private Long id;
+    private Long managerId;
+    public Long getManagerId() { return managerId; }
+    public void setManagerId(Long managerId) { this.managerId = managerId; }
     private Long userId;
     private String firstName;
     private String lastName;

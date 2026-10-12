@@ -12,6 +12,8 @@ public interface SrApprovalCheckRepository extends JpaRepository<SrApprovalCheck
 
     List<SrApprovalCheckEntity> findByRequestTypeAndIsActiveOrderByApprovalLevelAsc(String requestType, String isActive);
 
+    List<SrApprovalCheckEntity> findBySubcategoryAndIsActiveOrderByApprovalLevelAsc(String subcategory, String isActive);
+
     @Query("select distinct c.requestType from SrApprovalCheckEntity c where c.isActive = :isActive order by c.requestType")
     List<String> findDistinctRequestTypes(@Param("isActive") String isActive);
 }

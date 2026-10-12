@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.nxtgen.api.exception.GridNotFoundException;
@@ -30,8 +31,14 @@ public class NxtGenGridDataController {
     }
 
     @GetMapping("/griddata")
-    public List<Map<String, Object>> getGridData(@RequestParam String gridName) {
-        return gridDataService.getGridData(gridName);
+    public List<Map<String, Object>> getGridData(@RequestParam String gridName,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        return gridDataService.getGridData(gridName, authorization);
+    }
+
+    @ExceptionHandler(com.nxtgen.api.exception.AuthenticationFailedException.class)
+    public ResponseEntity<Map<String, String>> handleAuthentication(com.nxtgen.api.exception.AuthenticationFailedException exception) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", exception.getMessage()));
     }
 
     @ExceptionHandler(GridNotFoundException.class)

@@ -34,6 +34,33 @@ import com.nxtgen.api.service.ServiceRequestService;
 @RestController
 @RequestMapping("/api/sr")
 public class NxtGenServiceRequestController {
+    @GetMapping("/{srId}/approvers")
+    public List<com.nxtgen.api.dto.SrApproverResponse> approvers(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String srId) {
+        return serviceRequestService.approvers(authorization, srId);
+    }
+
+    @PostMapping("/{srId}/approvers/{approvalId}")
+    public List<com.nxtgen.api.dto.SrApproverResponse> updateApprover(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String srId, @PathVariable Long approvalId,
+            @RequestBody com.nxtgen.api.dto.SrApproverUpdateRequest request) {
+        return serviceRequestService.updateApprover(authorization, srId, approvalId, request);
+    }
+    @GetMapping("/{srId}/activities")
+    public List<com.nxtgen.api.entity.SrActivityEntity> activities(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String srId) {
+        return serviceRequestService.activities(authorization, srId);
+    }
+
+    @PostMapping("/{srId}/activities")
+    public List<com.nxtgen.api.entity.SrActivityEntity> postActivity(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String srId, @RequestBody com.nxtgen.api.dto.SrActivityRequest request) {
+        return serviceRequestService.postActivity(authorization, srId, request);
+    }
 
     private final ServiceRequestService serviceRequestService;
 
@@ -116,6 +143,16 @@ public class NxtGenServiceRequestController {
             @RequestBody SrAttachmentDeleteRequest request
     ) {
         return serviceRequestService.deleteAttachments(authorization, srId, request.ids());
+    }
+
+    @PostMapping("/{srId}/attachments/{attachmentId}/rename")
+    public List<SrAttachmentResponse> renameAttachment(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String srId,
+            @PathVariable Long attachmentId,
+            @RequestBody com.nxtgen.api.dto.SrAttachmentRenameRequest request
+    ) {
+        return serviceRequestService.renameAttachment(authorization, srId, attachmentId, request.fileName());
     }
 
     @GetMapping("/{srId}/attachments/{attachmentId}/file")

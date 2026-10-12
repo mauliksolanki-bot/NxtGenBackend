@@ -64,9 +64,11 @@ public class UserManagementService {
 
     public ValidationResponse validateUserData(CreateUserRequest request) {
         Map<String, String> errors = collectUserExistenceErrors(request);
+        validateManager(request.getManagerId(), null, errors);
         return new ValidationResponse(errors.isEmpty(), errors);
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public CreateUserResponse createUser(CreateUserRequest request) {
         Map<String, String> errors = collectValidationErrors(request);
 
@@ -96,9 +98,10 @@ public class UserManagementService {
                 request.getUserId()
         );
         newUser.setPasswordResetRequired(request.getPasswordResetRequired().toUpperCase());
+        newUser.setManagerId(request.getManagerId());
         UserMasterEntity savedUser = userMasterRepository.save(newUser);
 
-        userRoleRepository.saveAll(request.getRoleIds().stream()
+        userRoleRepository.saveAll(request.getRoleIds().stream().distinct()
                 .map(roleId -> new UserRoleEntity(
                         savedUser.getId(),
                         savedUser.getUsername(),
@@ -108,7 +111,7 @@ public class UserManagementService {
                 ))
                 .collect(Collectors.toList()));
 
-        userGroupRepository.saveAll(request.getGroupIds().stream()
+        userGroupRepository.saveAll(request.getGroupIds().stream().distinct()
                 .map(groupId -> new UserGroupEntity(
                         savedUser.getId(),
                         savedUser.getUsername(),
@@ -130,6 +133,10 @@ public class UserManagementService {
     public void deleteUser(Long userId) {
         UserMasterEntity user = userMasterRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(USER_NOT_FOUND_MESSAGE));
+
+        if (userMasterRepository.existsByManagerId(userId)) {
+            throw new UserValidationException("Reassign this manager's users before deleting them.", Map.of("manager", "Reassign this manager's users before deleting them."));
+        }
 
         userRoleRepository.deleteByUserId(user.getId());
         userGroupRepository.deleteByUserId(user.getId());
@@ -179,10 +186,14 @@ public class UserManagementService {
                 groups,
                 user.getIsSupAdmin(),
                 user.getPasswordResetRequired(),
-                user.getActvFlag()
+                user.getActvFlag(),
+                user.getManagerId(),
+                user.getManagerId() == null ? "" : userMasterRepository.findById(user.getManagerId())
+                        .map(manager -> manager.getEmplNm() + " (" + manager.getUsername() + ")").orElse("")
         );
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public CreateUserResponse updateUser(UpdateUserRequest request) {
         UserMasterEntity user = userMasterRepository.findById(request.getId())
                 .orElseThrow(() -> new UserNotFoundException(USER_NOT_FOUND_MESSAGE));
@@ -200,11 +211,13 @@ public class UserManagementService {
         user.setIsSupAdmin(request.getIsSuperAdmin());
         user.setActvFlag(request.getIsActive().toUpperCase());
         user.setPasswordResetRequired(request.getPasswordResetRequired().toUpperCase());
+        user.setManagerId(request.getManagerId());
 
         UserMasterEntity savedUser = userMasterRepository.save(user);
 
         userRoleRepository.deleteByUserId(savedUser.getId());
-        userRoleRepository.saveAll(request.getRoleIds().stream()
+        userRoleRepository.flush();
+        userRoleRepository.saveAll(request.getRoleIds().stream().distinct()
                 .map(roleId -> new UserRoleEntity(
                         savedUser.getId(),
                         savedUser.getUsername(),
@@ -215,7 +228,8 @@ public class UserManagementService {
                 .collect(Collectors.toList()));
 
         userGroupRepository.deleteByUserId(savedUser.getId());
-        userGroupRepository.saveAll(request.getGroupIds().stream()
+        userGroupRepository.flush();
+        userGroupRepository.saveAll(request.getGroupIds().stream().distinct()
                 .map(groupId -> new UserGroupEntity(
                         savedUser.getId(),
                         savedUser.getUsername(),
@@ -236,6 +250,7 @@ public class UserManagementService {
 
     private Map<String, String> collectValidationErrors(CreateUserRequest request) {
         Map<String, String> errors = new HashMap<>();
+        validateManager(request.getManagerId(), null, errors);
 
         String firstName = Optional.ofNullable(request.getFirstName()).map(String::trim).orElse("");
         String lastName = Optional.ofNullable(request.getLastName()).map(String::trim).orElse("");
@@ -281,6 +296,7 @@ public class UserManagementService {
 
     private Map<String, String> collectUpdateValidationErrors(UpdateUserRequest request) {
         Map<String, String> errors = new HashMap<>();
+        validateManager(request.getManagerId(), request.getId(), errors);
 
         String firstName = Optional.ofNullable(request.getFirstName()).map(String::trim).orElse("");
         String lastName = Optional.ofNullable(request.getLastName()).map(String::trim).orElse("");
@@ -355,6 +371,23 @@ public class UserManagementService {
         }
 
         return errors;
+    }
+
+    public List<OptionResponse> searchManagers(String query, Long excludeUserId) {
+        return userMasterRepository.searchActiveUsersByIdNameOrUsername(query == null ? "" : query.trim()).stream()
+                .filter(user -> !user.getId().equals(excludeUserId))
+                .map(user -> new OptionResponse(String.valueOf(user.getId()), user.getEmplNm() + " (" + user.getUsername() + ")"))
+                .toList();
+    }
+
+    private void validateManager(Long managerId, Long userId, Map<String, String> errors) {
+        if (managerId == null) {
+            errors.put("manager", "Manager is required. Search and select a user.");
+        } else if (managerId.equals(userId)) {
+            errors.put("manager", "A user cannot be their own manager.");
+        } else if (userMasterRepository.findById(managerId).filter(manager -> ENABLED_FLAG.equalsIgnoreCase(manager.getActvFlag())).isEmpty()) {
+            errors.put("manager", "Select an active user as Manager.");
+        }
     }
 
     private boolean hasInvalidRole(List<Long> roleIds) {

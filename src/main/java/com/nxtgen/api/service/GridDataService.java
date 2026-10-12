@@ -38,18 +38,21 @@ public class GridDataService {
     private final UserAuditRepository userAuditRepository;
     private final RoleRepository roleRepository;
     private final GroupRepository groupRepository;
+    private final ServiceRequestService serviceRequestService;
     private final Map<String, Supplier<List<Map<String, Object>>>> gridDataSuppliers;
 
     public GridDataService(
             UserMasterRepository userMasterRepository,
             UserAuditRepository userAuditRepository,
             RoleRepository roleRepository,
-            GroupRepository groupRepository
+            GroupRepository groupRepository,
+            ServiceRequestService serviceRequestService
     ) {
         this.userMasterRepository = userMasterRepository;
         this.userAuditRepository = userAuditRepository;
         this.roleRepository = roleRepository;
         this.groupRepository = groupRepository;
+        this.serviceRequestService = serviceRequestService;
         this.gridDataSuppliers = Map.of(
                 USERS_GRID, this::fetchUsersGridData,
                 ROLES_GRID, this::fetchRolesGridData,
@@ -63,6 +66,13 @@ public class GridDataService {
                 .map(gridDataSuppliers::get)
                 .orElseThrow(() -> new GridNotFoundException(GRID_NOT_FOUND_MESSAGE))
                 .get();
+    }
+
+    public List<Map<String, Object>> getGridData(String gridName, String authorization) {
+        if ("REQUESTS_GRID".equalsIgnoreCase(gridName == null ? "" : gridName.trim())) {
+            return serviceRequestService.listRequests(authorization);
+        }
+        return getGridData(gridName);
     }
 
     /**

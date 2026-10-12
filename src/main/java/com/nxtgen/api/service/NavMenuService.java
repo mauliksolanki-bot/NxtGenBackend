@@ -14,6 +14,7 @@ import com.nxtgen.api.dto.NavMenuResponse;
 import com.nxtgen.api.entity.NavMenuEntity;
 import com.nxtgen.api.repository.NavMenuRepository;
 import com.nxtgen.api.repository.UserRoleRepository;
+import com.nxtgen.api.repository.UserMasterRepository;
 import com.nxtgen.api.security.JwtTokenProvider;
 
 import io.jsonwebtoken.JwtException;
@@ -30,15 +31,18 @@ public class NavMenuService {
     private final NavMenuRepository navMenuRepository;
     private final UserRoleRepository userRoleRepository;
     private final JwtTokenProvider jwtTokenProvider;
+    private final UserMasterRepository userMasterRepository;
 
     public NavMenuService(
             NavMenuRepository navMenuRepository,
             UserRoleRepository userRoleRepository,
-            JwtTokenProvider jwtTokenProvider
+            JwtTokenProvider jwtTokenProvider,
+            UserMasterRepository userMasterRepository
     ) {
         this.navMenuRepository = navMenuRepository;
         this.userRoleRepository = userRoleRepository;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.userMasterRepository = userMasterRepository;
     }
 
     public List<NavMenuResponse> getNavigationMenu(String authorizationHeader) {
@@ -76,10 +80,17 @@ public class NavMenuService {
     private Set<String> resolveRoles(String authorizationHeader) {
         return extractBearerToken(authorizationHeader)
                 .flatMap(this::resolveUsername)
-                .map(userRoleRepository::findActiveRoleNamesByUsername)
-                .map(roleNames -> roleNames.stream()
-                        .map(roleName -> roleName.trim().toUpperCase(Locale.ROOT))
-                        .collect(Collectors.toSet()))
+                .flatMap(userMasterRepository::findByUsername)
+                .filter(user -> ENABLED_FLAG.equalsIgnoreCase(user.getActvFlag())
+                        && !ENABLED_FLAG.equalsIgnoreCase(user.getIsLocked()))
+                .map(user -> {
+                    Set<String> roles = userRoleRepository.findActiveRoleNamesByUsername(user.getUsername()).stream()
+                            .filter(java.util.Objects::nonNull)
+                            .map(this::normalizeRole)
+                            .collect(Collectors.toSet());
+                    if (ENABLED_FLAG.equalsIgnoreCase(user.getIsSupAdmin())) roles.add("SUPER ADMIN");
+                    return roles;
+                })
                 .orElseGet(Set::of);
     }
 
@@ -100,10 +111,15 @@ public class NavMenuService {
 
     private boolean isVisibleToUser(NavMenuEntity row, Set<String> userRoles) {
         String accessLevel = Optional.ofNullable(row.getAccessLevel())
-                .map(value -> value.trim().toUpperCase(Locale.ROOT))
+                .map(this::normalizeRole)
                 .orElse(NAV_MENU_ACCESS_ALL);
 
-        return NAV_MENU_ACCESS_ALL.equals(accessLevel) || userRoles.contains(accessLevel);
+        if ("APPROVER".equals(accessLevel)) return userRoles.contains("APPROVER");
+        return userRoles.contains("SUPER ADMIN") || NAV_MENU_ACCESS_ALL.equals(accessLevel) || userRoles.contains(accessLevel);
+    }
+
+    private String normalizeRole(String role) {
+        return role.trim().toUpperCase(Locale.ROOT).replaceAll("[_\\s]+", " ");
     }
 
     private boolean isChild(NavMenuEntity row) {

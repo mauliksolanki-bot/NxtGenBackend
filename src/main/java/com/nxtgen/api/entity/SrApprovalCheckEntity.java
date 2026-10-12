@@ -19,6 +19,9 @@ public class SrApprovalCheckEntity {
     @Column(name = "REQUEST_TYPE", nullable = false)
     private String requestType;
 
+    @Column(name = "SUBCATEGORY")
+    private String subcategory;
+
     @Column(name = "APPROVAL_LEVEL", nullable = false)
     private Integer approvalLevel;
 
@@ -27,6 +30,9 @@ public class SrApprovalCheckEntity {
 
     @Column(name = "APPROVER_ROLE")
     private String approverRole;
+    @Column(name = "APPROVER_GROUP_ID")
+    private Long approverGroupId;
+    public Long getApproverGroupId() { return approverGroupId; }
 
     @Column(name = "IS_ACTIVE", nullable = false)
     private String isActive;

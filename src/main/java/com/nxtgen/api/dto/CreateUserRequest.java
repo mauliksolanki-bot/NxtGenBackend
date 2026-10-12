@@ -5,6 +5,9 @@ import java.util.List;
 public class CreateUserRequest {
 
     private Long userId;
+    private Long managerId;
+    public Long getManagerId() { return managerId; }
+    public void setManagerId(Long managerId) { this.managerId = managerId; }
     private String firstName;
     private String lastName;
     private String emailAddress;

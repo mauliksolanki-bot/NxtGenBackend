@@ -76,6 +76,14 @@ public class NxtGenUserManagementController {
         return userManagementService.getUserById(id);
     }
 
+    @GetMapping("/searchmanagers")
+    public java.util.List<com.nxtgen.api.dto.OptionResponse> searchManagers(
+            @RequestParam(defaultValue = "") String query,
+            @RequestParam(required = false) Long excludeUserId
+    ) {
+        return userManagementService.searchManagers(query, excludeUserId);
+    }
+
     @PostMapping("/updateuser")
     public CreateUserResponse updateUser(@Valid @RequestBody UpdateUserRequest request) {
         return userManagementService.updateUser(request);

@@ -11,6 +11,9 @@ public record SrSaveRequest(
         String description,
         String workNotes,
         String categorySlug,
-        String subcategorySlug
+        String subcategorySlug,
+        String watchList,
+        Boolean backordered,
+        String orderGuide
 ) {
 }

@@ -12,6 +12,7 @@ import com.nxtgen.api.entity.UserMasterEntity;
 public interface UserMasterRepository extends JpaRepository<UserMasterEntity, Long> {
 
     Optional<UserMasterEntity> findByUsername(String username);
+    boolean existsByManagerId(Long managerId);
 
     Optional<UserMasterEntity> findByEmailAddress(String emailAddress);
 

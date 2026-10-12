@@ -81,6 +81,7 @@ public class ServiceRequestService {
     private static final Set<String> INLINE_EXTENSIONS = Set.of("pdf", "png", "jpg", "jpeg", "gif", "txt");
 
     private final AuthenticatedUserResolver userResolver;
+    private final com.nxtgen.api.repository.SrActivityRepository activityRepository;
     private final SrMasterRepository masterRepository;
     private final SrCommentRepository commentRepository;
     private final SrApprovalRepository approvalRepository;
@@ -90,6 +91,7 @@ public class ServiceRequestService {
     private final SvcCategoryRepository categoryRepository;
     private final SvcSubcategoryRepository subcategoryRepository;
     private final UserMasterRepository userMasterRepository;
+    private final com.nxtgen.api.repository.UserRoleRepository userRoleRepository;
 
     public ServiceRequestService(
             AuthenticatedUserResolver userResolver,
@@ -101,9 +103,12 @@ public class ServiceRequestService {
             SrSequenceRepository sequenceRepository,
             SvcCategoryRepository categoryRepository,
             SvcSubcategoryRepository subcategoryRepository,
-            UserMasterRepository userMasterRepository
+            UserMasterRepository userMasterRepository,
+            com.nxtgen.api.repository.SrActivityRepository activityRepository,
+            com.nxtgen.api.repository.UserRoleRepository userRoleRepository
     ) {
         this.userResolver = userResolver;
+        this.activityRepository = activityRepository;
         this.masterRepository = masterRepository;
         this.commentRepository = commentRepository;
         this.approvalRepository = approvalRepository;
@@ -113,6 +118,7 @@ public class ServiceRequestService {
         this.categoryRepository = categoryRepository;
         this.subcategoryRepository = subcategoryRepository;
         this.userMasterRepository = userMasterRepository;
+        this.userRoleRepository = userRoleRepository;
     }
 
     @Transactional(readOnly = true)
@@ -128,6 +134,175 @@ public class ServiceRequestService {
     }
 
     public record FileDownload(byte[] data, String fileName, String contentType, boolean inline) {
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> listRequests(String authorization) {
+        UserMasterEntity user = userResolver.resolve(authorization);
+        // Self Service always lists the caller's requests, including for super administrators.
+        List<SrMasterEntity> requests = masterRepository
+                .findByOpenedByUsernameOrderByOpenedAtDescSrIdDesc(user.getUsername());
+        if (requests.isEmpty()) return List.of();
+
+        Map<String, List<SrApprovalEntity>> approvals = approvalRepository
+                .findBySrIdInOrderByApprovalLevelAsc(requests.stream().map(SrMasterEntity::getSrId).toList())
+                .stream().collect(java.util.stream.Collectors.groupingBy(SrApprovalEntity::getSrId));
+        Map<Long, SvcSubcategoryEntity> subcategories = subcategoryRepository.findAllById(requests.stream()
+                .map(SrMasterEntity::getSubcategoryId).filter(java.util.Objects::nonNull).distinct().toList())
+                .stream().collect(java.util.stream.Collectors.toMap(SvcSubcategoryEntity::getId, value -> value));
+        Map<Long, com.nxtgen.api.entity.SvcCategoryEntity> categories = categoryRepository.findAllById(subcategories.values()
+                .stream().map(SvcSubcategoryEntity::getCategoryId).filter(java.util.Objects::nonNull).distinct().toList())
+                .stream().collect(java.util.stream.Collectors.toMap(com.nxtgen.api.entity.SvcCategoryEntity::getId, value -> value));
+
+        return requests.stream().map(sr -> {
+            SvcSubcategoryEntity subcategory = subcategories.get(sr.getSubcategoryId());
+            com.nxtgen.api.entity.SvcCategoryEntity category = subcategory == null ? null : categories.get(subcategory.getCategoryId());
+            List<SrApprovalEntity> steps = approvals.getOrDefault(sr.getSrId(), List.of());
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", sr.getSrId());
+            row.put("number", sr.getSrId());
+            row.put("catalog", category == null ? "" : nullToEmpty(category.getName()));
+            row.put("item", subcategory == null ? nullToEmpty(sr.getSubcategory()) : nullToEmpty(subcategory.getName()));
+            row.put("approval", approvalStatus(steps, sr));
+            row.put("quantity", sr.getQuantity());
+            row.put("stage", nullToEmpty(sr.getStage()));
+            row.put("state", nullToEmpty(sr.getState()));
+            row.put("active", !isClosed(sr));
+            return row;
+        }).toList();
+    }
+
+    private static String approvalStatus(List<SrApprovalEntity> steps, SrMasterEntity sr) {
+        if (steps.stream().anyMatch(step -> "Rejected".equalsIgnoreCase(step.getApprovalStatus()))) return "Rejected";
+        if (steps.stream().anyMatch(step -> "Cancelled".equalsIgnoreCase(step.getApprovalStatus()))) return "Cancelled";
+        if (steps.isEmpty()) return "Draft".equals(sr.getState()) ? "Not requested" : "Not required";
+        if (steps.stream().allMatch(step -> "Approved".equalsIgnoreCase(step.getApprovalStatus()))) return "Approved";
+        return "Requested";
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.nxtgen.api.dto.SrApproverResponse> approvers(String authorization, String srId) {
+        UserMasterEntity user = userResolver.resolve(authorization);
+        SrMasterEntity sr = loadReadable(user, srId);
+        return approverResponses(approvalRepository.findBySrIdOrderByApprovalLevelAscIdAsc(srId), sr, user);
+    }
+
+    private List<com.nxtgen.api.dto.SrApproverResponse> approverResponses(List<SrApprovalEntity> steps,
+            SrMasterEntity sr, UserMasterEntity user) {
+        return steps.stream().map(step -> new com.nxtgen.api.dto.SrApproverResponse(
+                step.getId(), nullToEmpty(step.getApprovalStatus()), nullToEmpty(step.getApprovalPendingTo()),
+                nullToEmpty(step.getComments()), step.getCreatedAt() == null ? "" : step.getCreatedAt().toString(),
+                step.getApprovalLevel(), !isClosed(sr) && (ENABLED_FLAG.equalsIgnoreCase(user.getIsSupAdmin())
+                        || ("Pending".equals(step.getApprovalStatus()) && isAssignedApprover(user, step)))
+        )).toList();
+    }
+
+    @Transactional
+    public List<com.nxtgen.api.dto.SrApproverResponse> updateApprover(String authorization, String srId, Long approvalId,
+            com.nxtgen.api.dto.SrApproverUpdateRequest request) {
+        UserMasterEntity user = userResolver.resolve(authorization);
+        boolean administrator = ENABLED_FLAG.equalsIgnoreCase(user.getIsSupAdmin());
+        if (!administrator && !activeRoles(user).contains("APPROVER")) throw new ServiceRequestAccessException("The APPROVER role is required.");
+        // Serialize decisions for this request so later levels cannot skip pending approvals.
+        SrMasterEntity sr = masterRepository.findForUpdate(srId)
+                .orElseThrow(() -> new ServiceRequestNotFoundException("Service request not found."));
+        assertOpen(sr);
+        List<SrApprovalEntity> steps = approvalRepository.findBySrIdOrderByApprovalLevelAscIdAsc(srId);
+        SrApprovalEntity step = steps.stream().filter(value -> java.util.Objects.equals(value.getId(), approvalId))
+                .findFirst().orElseThrow(() -> new ServiceRequestNotFoundException("Approval not found."));
+        if (!administrator && !isAssignedApprover(user, step)) throw new ServiceRequestAccessException("This approval is not assigned to you.");
+        if (!administrator && (!"Pending".equals(step.getApprovalStatus()) || !java.util.Objects.equals(clean(step.getApprovalPendingTo()), clean(request.approver()))))
+            throw new ServiceRequestAccessException("You can only decide your pending approval; reassignment requires an administrator.");
+        String state = clean(request.state());
+        String approver = clean(request.approver());
+        String comments = clean(request.comments());
+        Map<String, String> errors = new LinkedHashMap<>();
+        requireValue(errors, "approver", approver, "Approver is required.");
+        checkLength(errors, "approver", approver, 200);
+        checkLength(errors, "comments", comments, 10000);
+        if (!Set.of("Not Started", "Pending", "Approved", "Rejected", "Cancelled").contains(nullToEmpty(state))) {
+            errors.put("state", "Select a valid approval state.");
+        }
+        boolean changedState = !java.util.Objects.equals(step.getApprovalStatus(), state);
+        if (changedState && !"Pending".equals(step.getApprovalStatus())) {
+            errors.put("state", "Only a pending approval can be decided.");
+        } else if (changedState && !Set.of("Approved", "Rejected", "Cancelled").contains(nullToEmpty(state))) {
+            errors.put("state", "Choose Approved, Rejected, or Cancelled.");
+        }
+        if (changedState && steps.stream().anyMatch(previous -> previous.getApprovalLevel() < step.getApprovalLevel()
+                && !"Approved".equals(previous.getApprovalStatus()))) {
+            errors.put("state", "Earlier approval levels must be approved first.");
+        }
+        if (!errors.isEmpty()) throw new UserValidationException(VALIDATION_MESSAGE, errors);
+        boolean changed = changedState || !java.util.Objects.equals(clean(step.getApprovalPendingTo()), approver)
+                || !java.util.Objects.equals(clean(step.getComments()), comments);
+        if (!changed) return approverResponses(steps, sr, user);
+        step.setApprovalPendingTo(approver);
+        step.setComments(comments);
+        step.setApprovalStatus(state);
+        approvalRepository.save(step);
+        if (changedState && "Approved".equals(state)) {
+            steps.stream().filter(next -> "Not Started".equals(next.getApprovalStatus())).findFirst().ifPresent(next -> {
+                next.setApprovalStatus("Pending");
+                approvalRepository.save(next);
+            });
+            if (steps.stream().allMatch(value -> "Approved".equals(value.getApprovalStatus()))) {
+                sr.setStage("Approved");
+                sr.setState("In Progress");
+            }
+        } else if (changedState) {
+            steps.stream().filter(next -> "Pending".equals(next.getApprovalStatus()) || "Not Started".equals(next.getApprovalStatus()))
+                    .forEach(next -> { next.setApprovalStatus("Cancelled"); approvalRepository.save(next); });
+            sr.setStage("Closed");
+            sr.setState("Closed Cancelled");
+        }
+        sr.setUpdBy(user.getUsername());
+        sr.setUpdDate(LocalDateTime.now());
+        masterRepository.save(sr);
+        recordActivity(srId, "Approval updated", user, "Level " + step.getApprovalLevel() + "\nApprover: " + approver
+                + "\nState: " + state + (comments == null ? "" : "\nComments: " + comments));
+        return approverResponses(steps, sr, user);
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.nxtgen.api.entity.SrActivityEntity> activities(String authorization, String srId) {
+        loadReadable(userResolver.resolve(authorization), srId);
+        return activityRepository.findBySrIdOrderByCreatedAtDescIdDesc(srId);
+    }
+
+    @Transactional
+    public List<com.nxtgen.api.entity.SrActivityEntity> postActivity(String authorization, String srId,
+            com.nxtgen.api.dto.SrActivityRequest request) {
+        UserMasterEntity user = userResolver.resolve(authorization);
+        assertOpen(loadOwned(user, srId));
+        String body = clean(request.body());
+        if (body == null || body.length() > 10000) {
+            throw validationError("body", "Enter a note of between 1 and 10000 characters.");
+        }
+        recordActivity(srId, request.customerVisible() ? "Comments" : "Work notes", user, body);
+        return activityRepository.findBySrIdOrderByCreatedAtDescIdDesc(srId);
+    }
+
+    private void recordActivity(String srId, String type, UserMasterEntity user, String body) {
+        activityRepository.save(new com.nxtgen.api.entity.SrActivityEntity(
+                srId, type, user.getEmplNm() == null ? user.getUsername() : user.getEmplNm(), body));
+    }
+
+    private Map<String, String> snapshot(SrMasterEntity sr) {
+        Map<String, String> values = new LinkedHashMap<>();
+        values.put("Request type", nullToEmpty(sr.getRequestType()));
+        values.put("Requested for", nullToEmpty(sr.getRequestedFor()));
+        values.put("Title", nullToEmpty(sr.getTitle()));
+        values.put("Configuration item", nullToEmpty(sr.getCiItem()));
+        values.put("Due date", sr.getDueDate() == null ? "" : sr.getDueDate().toString());
+        values.put("Estimated delivery", sr.getEstimatedDelivery() == null ? "" : sr.getEstimatedDelivery().toString());
+        values.put("Quantity", sr.getQuantity() == null ? "" : sr.getQuantity().toString());
+        values.put("Watch list", nullToEmpty(sr.getWatchList()));
+        values.put("Backordered", String.valueOf(sr.isBackordered()));
+        values.put("Order Guide", nullToEmpty(sr.getOrderGuide()));
+        values.put("Description", commentRepository.findFirstBySrIdOrderByIdAsc(sr.getSrId())
+                .map(SrCommentEntity::getComments).orElse(""));
+        return values;
     }
 
     @Transactional(readOnly = true)
@@ -152,8 +327,10 @@ public class ServiceRequestService {
 
     @Transactional(readOnly = true)
     public SrDetailResponse get(String authorization, String srId) {
-        SrMasterEntity sr = loadOwned(authorization, srId);
-        return toDetail(sr, commentRepository.findFirstBySrIdOrderByIdAsc(srId));
+        UserMasterEntity user = userResolver.resolve(authorization);
+        SrMasterEntity sr = loadReadable(user, srId);
+        return toDetail(sr, commentRepository.findFirstBySrIdOrderByIdAsc(srId),
+                user.getUsername().equals(sr.getOpenedByUsername()) || ENABLED_FLAG.equalsIgnoreCase(user.getIsSupAdmin()));
     }
 
     @Transactional
@@ -162,7 +339,13 @@ public class ServiceRequestService {
         SrMasterEntity sr = loadOwned(user, srId);
         assertOpen(sr);
 
+        Map<String, String> before = snapshot(sr);
         applyRequest(sr, request, user, false);
+        String changes = snapshot(sr).entrySet().stream()
+                .filter(entry -> !java.util.Objects.equals(before.get(entry.getKey()), entry.getValue()))
+                .map(entry -> entry.getKey() + ": " + before.get(entry.getKey()) + " → " + entry.getValue())
+                .collect(java.util.stream.Collectors.joining("\n"));
+        if (!changes.isEmpty()) recordActivity(srId, "Field changes", user, changes);
         return toDetail(sr, commentRepository.findFirstBySrIdOrderByIdAsc(srId));
     }
 
@@ -190,18 +373,17 @@ public class ServiceRequestService {
         String srId = sr.getSrId();
 
         List<SrApprovalCheckEntity> checks = approvalCheckRepository
+                .findBySubcategoryAndIsActiveOrderByApprovalLevelAsc(sr.getSubcategory(), ENABLED_FLAG);
+        if (checks.isEmpty()) checks = approvalCheckRepository
                 .findByRequestTypeAndIsActiveOrderByApprovalLevelAsc(sr.getRequestType(), ENABLED_FLAG);
-        checks.forEach(check -> approvalRepository.save(new SrApprovalEntity(
-                srId,
-                sr.getReqId(),
-                check.getApprovalLevel(),
-                check == checks.get(0) ? APPROVAL_PENDING : APPROVAL_NOT_STARTED,
-                check.getApprovalName()
-        )));
+        for (int index = 0; index < checks.size(); index++) {
+            approvalRepository.save(buildApproval(sr, checks.get(index), user, index == 0));
+        }
 
         sr.setState(STATE_SUBMITTED);
         sr.setStage(checks.isEmpty() ? STAGE_FULFILLMENT : STAGE_APPROVAL);
         masterRepository.save(sr);
+        recordActivity(srId, "Request created", user, "State: " + sr.getState() + "\nStage: " + sr.getStage());
 
         return toDetail(sr, commentRepository.findFirstBySrIdOrderByIdAsc(srId));
     }
@@ -211,6 +393,7 @@ public class ServiceRequestService {
         SrMasterEntity sr = loadOwned(authorization, srId);
 
         attachmentRepository.deleteBySrId(srId);
+        activityRepository.deleteBySrId(srId);
         approvalRepository.deleteBySrId(srId);
         commentRepository.deleteBySrId(srId);
         masterRepository.delete(sr);
@@ -218,7 +401,7 @@ public class ServiceRequestService {
 
     @Transactional(readOnly = true)
     public List<SrAttachmentResponse> listAttachments(String authorization, String srId) {
-        loadOwned(authorization, srId);
+        loadReadable(userResolver.resolve(authorization), srId);
         return attachmentRepository.findBySrIdOrderByIdAsc(srId).stream()
                 .map(view -> new SrAttachmentResponse(view.getId(), view.getFileName(), view.getContentType(), view.getFileSize()))
                 .toList();
@@ -256,6 +439,7 @@ public class ServiceRequestService {
         attachmentRepository.save(new SrAttachmentEntity(
                 srId, fileName, contentType, (long) data.length, data, user.getUsername(), LocalDateTime.now()
         ));
+        recordActivity(srId, "Attachment uploaded", user, fileName + "\n" + data.length + " bytes");
         return listAttachments(authorization, srId);
     }
 
@@ -267,13 +451,37 @@ public class ServiceRequestService {
         if (ids == null || ids.isEmpty()) {
             throw validationError("ids", "Select at least one file to delete.");
         }
+        for (Long id : ids) {
+            attachmentRepository.findByIdAndSrId(id, srId).ifPresent(attachment ->
+                    recordActivity(srId, "Attachment deleted", user, attachment.getFileName()));
+        }
         attachmentRepository.deleteByIdInAndSrId(ids, srId);
+        return listAttachments(authorization, srId);
+    }
+
+    @Transactional
+    public List<SrAttachmentResponse> renameAttachment(String authorization, String srId, Long attachmentId, String fileName) {
+        UserMasterEntity user = userResolver.resolve(authorization);
+        assertOpen(loadOwned(user, srId));
+        SrAttachmentEntity attachment = attachmentRepository.findByIdAndSrId(attachmentId, srId)
+                .orElseThrow(() -> new ServiceRequestNotFoundException("Attachment not found."));
+        String name = fileName == null ? "" : fileName.trim();
+        if (name.isEmpty() || name.length() > 255 || name.contains("/") || name.contains("\\")
+                || name.chars().anyMatch(Character::isISOControl)
+                || !extensionOf(name).equals(extensionOf(attachment.getFileName()))) {
+            throw validationError("fileName", "Enter a valid file name and keep the original extension.");
+        }
+        if (!name.equals(attachment.getFileName())) {
+            recordActivity(srId, "Attachment renamed", user, attachment.getFileName() + " → " + name);
+            attachment.setFileName(name);
+            attachmentRepository.save(attachment);
+        }
         return listAttachments(authorization, srId);
     }
 
     @Transactional(readOnly = true)
     public FileDownload download(String authorization, String srId, Long attachmentId) {
-        loadOwned(authorization, srId);
+        loadReadable(userResolver.resolve(authorization), srId);
         SrAttachmentEntity attachment = attachmentRepository.findByIdAndSrId(attachmentId, srId)
                 .orElseThrow(() -> new ServiceRequestNotFoundException("Attachment not found."));
 
@@ -284,6 +492,24 @@ public class ServiceRequestService {
                 attachment.getContentType(),
                 INLINE_EXTENSIONS.contains(extension)
         );
+    }
+
+    SrApprovalEntity buildApproval(SrMasterEntity sr, SrApprovalCheckEntity check, UserMasterEntity requester, boolean first) {
+        SrApprovalEntity approval = new SrApprovalEntity(sr.getSrId(), sr.getReqId(), check.getApprovalLevel(),
+                first ? APPROVAL_PENDING : APPROVAL_NOT_STARTED, check.getApprovalName());
+        approval.setApprovalName(check.getApprovalName());
+        approval.setApproverRole(check.getApproverRole());
+        approval.setApproverGroupId(check.getApproverGroupId());
+        if (check.getApproverGroupId() != null) approval.setApprovalPendingTo("Software Licence Management");
+        if ("MANAGER".equalsIgnoreCase(check.getApproverRole())) {
+            if (requester.getManagerId() == null) throw validationError("requestedFor", "Assign a Manager to your user account before submitting this request.");
+            UserMasterEntity manager = userMasterRepository.findById(requester.getManagerId())
+                    .filter(candidate -> ENABLED_FLAG.equalsIgnoreCase(candidate.getActvFlag()))
+                    .orElseThrow(() -> validationError("requestedFor", "Your assigned Manager is inactive or unavailable. Update your user account."));
+            approval.setApproverUserId(manager.getId());
+            approval.setApprovalPendingTo(manager.getEmplNm() + " (" + manager.getUsername() + ")");
+        }
+        return approval;
     }
 
     private void applyRequest(SrMasterEntity sr, SrSaveRequest request, UserMasterEntity user, boolean forSubmit) {
@@ -306,6 +532,8 @@ public class ServiceRequestService {
         checkLength(errors, "title", title, 200);
         checkLength(errors, "ciItem", ciItem, 100);
         checkLength(errors, "requestType", requestType, 100);
+        checkLength(errors, "watchList", clean(request.watchList()), 1000);
+        checkLength(errors, "orderGuide", clean(request.orderGuide()), 200);
 
         if (requestType != null && approvalCheckRepository.findDistinctRequestTypes(ENABLED_FLAG).stream()
                 .noneMatch(requestType::equals)) {
@@ -321,6 +549,9 @@ public class ServiceRequestService {
         }
 
         sr.setRequestType(requestType);
+        if (request.watchList() != null) sr.setWatchList(clean(request.watchList()));
+        if (request.backordered() != null) sr.setBackordered(request.backordered());
+        if (request.orderGuide() != null) sr.setOrderGuide(clean(request.orderGuide()));
         sr.setRequestedFor(requestedFor);
         sr.setTitle(title);
         sr.setCiItem(ciItem);
@@ -336,7 +567,10 @@ public class ServiceRequestService {
         comment.setSrId(sr.getSrId());
         comment.setReqId(sr.getReqId());
         comment.setComments(description);
-        comment.setWorkNotes(workNotes);
+        if (workNotes != null && !workNotes.equals(comment.getWorkNotes())) {
+            recordActivity(sr.getSrId(), "Work notes", user, workNotes);
+            comment.setWorkNotes(workNotes);
+        }
         commentRepository.save(comment);
     }
 
@@ -351,6 +585,29 @@ public class ServiceRequestService {
         boolean owner = user.getUsername().equals(sr.getOpenedByUsername());
         if (!owner && !ENABLED_FLAG.equalsIgnoreCase(user.getIsSupAdmin())) {
             throw new ServiceRequestAccessException("You are not allowed to access this service request.");
+        }
+        return sr;
+    }
+
+    private Set<String> activeRoles(UserMasterEntity user) {
+        return userRoleRepository.findActiveRoleNamesByUsername(user.getUsername()).stream()
+                .filter(java.util.Objects::nonNull).map(role -> role.trim().toUpperCase(java.util.Locale.ROOT)).collect(java.util.stream.Collectors.toSet());
+    }
+
+    private boolean isAssignedApprover(UserMasterEntity user, SrApprovalEntity step) {
+        Set<String> roles = activeRoles(user);
+        if (!roles.contains("APPROVER")) return false;
+        if (step.getApproverGroupId() != null) return userRoleRepository.findActiveGroupIdsByUsername(user.getUsername()).contains(step.getApproverGroupId());
+        return step.getApproverUserId() != null ? step.getApproverUserId().equals(user.getId())
+                : step.getApproverRole() != null && !"MANAGER".equalsIgnoreCase(step.getApproverRole().trim())
+                        && roles.contains(step.getApproverRole().trim().toUpperCase(java.util.Locale.ROOT));
+    }
+
+    private SrMasterEntity loadReadable(UserMasterEntity user, String srId) {
+        SrMasterEntity sr = masterRepository.findById(srId).orElseThrow(() -> new ServiceRequestNotFoundException("Service request not found."));
+        if (!user.getUsername().equals(sr.getOpenedByUsername()) && !ENABLED_FLAG.equalsIgnoreCase(user.getIsSupAdmin())
+                && (!activeRoles(user).contains("APPROVER") || approvalRepository.findBySrIdOrderByApprovalLevelAscIdAsc(srId).stream().noneMatch(step -> isAssignedApprover(user, step)))) {
+            throw new ServiceRequestAccessException("This request is not assigned to you for approval.");
         }
         return sr;
     }
@@ -387,6 +644,10 @@ public class ServiceRequestService {
     }
 
     private SrDetailResponse toDetail(SrMasterEntity sr, Optional<SrCommentEntity> comment) {
+        return toDetail(sr, comment, true);
+    }
+
+    private SrDetailResponse toDetail(SrMasterEntity sr, Optional<SrCommentEntity> comment, boolean allowChanges) {
         return new SrDetailResponse(
                 sr.getSrId(),
                 sr.getReqId(),
@@ -403,9 +664,12 @@ public class ServiceRequestService {
                 nullToEmpty(sr.getTitle()),
                 comment.map(SrCommentEntity::getComments).orElse(""),
                 comment.map(SrCommentEntity::getWorkNotes).orElse(""),
-                !isClosed(sr),
+                allowChanges && !isClosed(sr),
                 nullToEmpty(sr.getSubcategory()),
-                formNameFor(sr)
+                formNameFor(sr),
+                nullToEmpty(sr.getWatchList()),
+                sr.isBackordered(),
+                nullToEmpty(sr.getOrderGuide())
         );
     }
 

@@ -9,6 +9,10 @@ import java.util.List;
 public class UserDetailResponse {
 
     private final Long id;
+    private final Long managerId;
+    private final String managerName;
+    public Long getManagerId() { return managerId; }
+    public String getManagerName() { return managerName; }
     private final Long userId;
     private final String firstName;
     private final String lastName;
@@ -33,10 +37,14 @@ public class UserDetailResponse {
             List<OptionResponse> groups,
             String isSuperAdmin,
             String passwordResetRequired,
-            String isActive
+            String isActive,
+            Long managerId,
+            String managerName
     ) {
         this.passwordResetRequired = passwordResetRequired;
         this.isActive = isActive;
+        this.managerId = managerId;
+        this.managerName = managerName;
         this.id = id;
         this.userId = userId;
         this.firstName = firstName;

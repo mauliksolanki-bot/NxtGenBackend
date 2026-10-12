@@ -18,6 +18,9 @@ public record SrDetailResponse(
         String workNotes,
         boolean editable,
         String subcategory,
-        String formName
+        String formName,
+        String watchList,
+        boolean backordered,
+        String orderGuide
 ) {
 }

@@ -19,6 +19,12 @@ public interface UserRoleRepository extends JpaRepository<UserRoleEntity, Long> 
             """)
     List<String> findActiveRoleNamesByUsername(@Param("username") String username);
 
+    @Query("""
+        select g.id from UserGroupEntity ug join GroupEntity g on g.id = ug.groupId
+        where ug.username = :username and g.isActive = 'Y'
+        """)
+    List<Long> findActiveGroupIdsByUsername(@Param("username") String username);
+
     @Modifying
     @Transactional
     void deleteByUserId(Long userId);

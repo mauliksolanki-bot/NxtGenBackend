@@ -46,6 +46,12 @@ public class UserMasterEntity {
     @Column(name = "SRC_USER_ID")
     private Long srcUserId;
 
+    @Column(name = "MANAGER_ID")
+    private Long managerId;
+
+    public Long getManagerId() { return managerId; }
+    public void setManagerId(Long managerId) { this.managerId = managerId; }
+
     @Column(name = "FAILED_LOGIN_ATTEMPTS")
     private Integer failedLoginAttempts = 0;
 

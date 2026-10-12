@@ -10,6 +10,20 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "NXTGEN_SR_APPROVALS")
 public class SrApprovalEntity {
+    @Column(name = "COMMENTS", columnDefinition = "LONGTEXT")
+    private String comments;
+    @Column(name = "CREATED_AT")
+    private java.time.LocalDateTime createdAt;
+
+    @jakarta.persistence.PrePersist
+    public void initializeCreatedAt() {
+        if (createdAt == null) createdAt = java.time.LocalDateTime.now();
+    }
+    public String getComments() { return comments; }
+    public void setComments(String value) { comments = value; }
+    public java.time.LocalDateTime getCreatedAt() { return createdAt; }
+    public void setApprovalStatus(String value) { approvalStatus = value; }
+    public void setApprovalPendingTo(String value) { approvalPendingTo = value; }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -30,6 +44,24 @@ public class SrApprovalEntity {
 
     @Column(name = "APPROVAL_PENDING_TO")
     private String approvalPendingTo;
+
+    @Column(name = "APPROVAL_NAME")
+    private String approvalName;
+    @Column(name = "APPROVER_ROLE")
+    private String approverRole;
+    @Column(name = "APPROVER_USER_ID")
+    private Long approverUserId;
+    @Column(name = "APPROVER_GROUP_ID")
+    private Long approverGroupId;
+    public Long getApproverGroupId() { return approverGroupId; }
+    public void setApproverGroupId(Long value) { approverGroupId = value; }
+
+    public String getApprovalName() { return approvalName; }
+    public String getApproverRole() { return approverRole; }
+    public Long getApproverUserId() { return approverUserId; }
+    public void setApprovalName(String value) { approvalName = value; }
+    public void setApproverRole(String value) { approverRole = value; }
+    public void setApproverUserId(Long value) { approverUserId = value; }
 
     public SrApprovalEntity() {
     }

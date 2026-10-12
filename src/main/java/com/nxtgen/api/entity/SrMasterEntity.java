@@ -11,6 +11,15 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "NXTGEN_SR_MASTER")
 public class SrMasterEntity {
+    @Column(name = "WATCH_LIST") private String watchList;
+    @Column(name = "BACKORDERED", nullable = false) private boolean backordered;
+    @Column(name = "ORDER_GUIDE") private String orderGuide;
+    public String getWatchList() { return watchList; }
+    public void setWatchList(String value) { watchList = value; }
+    public boolean isBackordered() { return backordered; }
+    public void setBackordered(boolean value) { backordered = value; }
+    public String getOrderGuide() { return orderGuide; }
+    public void setOrderGuide(String value) { orderGuide = value; }
 
     @Id
     @Column(name = "SR_ID")
