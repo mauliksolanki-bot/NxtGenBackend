@@ -1,0 +1,89 @@
+# Azure Repos: NxtGenRestAPI, branch development.
+# Reuse the frontend's SSH connection (172.198.161.188:22).
+trigger:
+  branches:
+    include:
+      - development
+
+variables:
+  sshServiceConnection: 'nxtgen-ubuntu-ssh'
+  backendRoot: '/opt/nxtgen/backend'
+  serverHost: '172.198.161.188'
+
+stages:
+  - stage: Build
+    displayName: Build NxtGen REST API
+    jobs:
+      - job: BuildAPI
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+            clean: true
+          - task: Maven@4
+            displayName: Test and package Java 21 backend
+            inputs:
+              mavenPOMFile: pom.xml
+              goals: clean verify
+              javaHomeOption: JDKVersion
+              jdkVersionOption: '1.21'
+              jdkArchitectureOption: x64
+              publishJUnitResults: true
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+          - bash: |
+              set -euo pipefail
+              bash -n deployment/bootstrap-ubuntu.sh
+              bash -n deployment/activate-release.sh
+              test -s target/nxtgen-backend-0.0.1-SNAPSHOT.jar
+              mkdir -p "$(Build.ArtifactStagingDirectory)/nxtgen-backend"
+              cp target/nxtgen-backend-0.0.1-SNAPSHOT.jar "$(Build.ArtifactStagingDirectory)/nxtgen-backend/app.jar"
+              cp deployment/activate-release.sh "$(Build.ArtifactStagingDirectory)/nxtgen-backend/activate-release.sh"
+            displayName: Prepare backend artifact
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/nxtgen-backend'
+              artifact: nxtgen-backend
+
+  - stage: Deploy
+    displayName: Deploy API to Ubuntu
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/development'))
+    jobs:
+      - job: DeployAPI
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: none
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: nxtgen-backend
+              path: '$(Pipeline.Workspace)/nxtgen-backend'
+          - task: SSH@0
+            displayName: Prepare backend release
+            inputs:
+              sshEndpoint: '$(sshServiceConnection)'
+              runOptions: inline
+              inline: |
+                set -euo pipefail
+                test -d '$(backendRoot)/releases' || { echo 'Run the backend deployment/bootstrap-ubuntu.sh on the VM first.'; exit 1; }
+                systemctl cat nxtgen-api.service >/dev/null
+                mkdir -p '$(backendRoot)/releases/$(Build.BuildId)'
+              failOnStdErr: false
+          - task: CopyFilesOverSSH@0
+            displayName: Upload backend JAR
+            inputs:
+              sshEndpoint: '$(sshServiceConnection)'
+              sourceFolder: '$(Pipeline.Workspace)/nxtgen-backend'
+              contents: '**'
+              targetFolder: '$(backendRoot)/releases/$(Build.BuildId)'
+              cleanTargetFolder: false
+              overwrite: true
+          - task: SSH@0
+            displayName: Restart API and verify health
+            inputs:
+              sshEndpoint: '$(sshServiceConnection)'
+              runOptions: inline
+              inline: |
+                set -euo pipefail
+                bash '$(backendRoot)/releases/$(Build.BuildId)/activate-release.sh' '$(Build.BuildId)' '$(serverHost)'
+              failOnStdErr: false

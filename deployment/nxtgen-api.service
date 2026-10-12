@@ -1,0 +1,27 @@
+[Unit]
+Description=NxtGen REST API
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=nxtgen-api
+Group=nxtgen-api
+StateDirectory=nxtgen-api
+WorkingDirectory=/var/lib/nxtgen-api
+EnvironmentFile=/opt/nxtgen/backend/shared/backend.env
+ExecStart=/usr/bin/java -Xms256m -Xmx768m -jar /opt/nxtgen/backend/current/app.jar
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=45
+SuccessExitStatus=143
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

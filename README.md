@@ -18,3 +18,7 @@ mvn spring-boot:run
 The production profile is the default. Override the TiDB JDBC URL with `PROD_DB_URL` when needed. At startup, `FlywayStartupConfig` prepares `NXTGEN_TABLE_SCHEMA_HISTORY` with a baseline at version `0`, then runs Flyway repair and migration. Add versioned SQL migrations under `src/main/resources/db/migration` (for example, `V1__create_users.sql`).
 
 `GET /api/health` returns the API status; Swagger UI is available at `/swagger-ui.html`.
+
+## Azure Ubuntu deployment
+
+Use `azure-pipelines.yml` for the `development` branch of NxtGenRestAPI. See [backend deployment setup](deployment/README.md) for the shared SSH connection, Java 21 service, environment settings, and rollback.
